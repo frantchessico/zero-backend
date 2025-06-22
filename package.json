@@ -1,0 +1,49 @@
+{
+  "name": "zero-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon",
+    "dev:debug": "nodemon --inspect",
+    "dev:verbose": "nodemon --verbose",
+    "build": "tsc",
+    "build:dev": "sucrase src -d dist --transforms typescript,imports",
+    "build:watch": "sucrase src -d dist --transforms typescript,imports --watch",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:db": "sucrase-node src/config/database.test.ts",
+    "db:connect": "sucrase-node -e \"import('./src/config/database').then(db => db.connectDatabase())\"",
+    "example:user": "sucrase-node src/examples/user-service-example.ts",
+    "example:server": "sucrase-node src/examples/user-routes-example.ts",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@clerk/clerk-sdk-node": "^5.1.6",
+    "body-parser": "^2.2.0",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "mongoose": "^8.16.0",
+    "morgan": "^1.10.0",
+    "socket.io": "^4.8.1",
+    "sucrase": "^3.35.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^20.11.0",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

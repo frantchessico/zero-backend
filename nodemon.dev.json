@@ -1,0 +1,31 @@
+{
+  "watch": ["src"],
+  "ext": "ts,js,json",
+  "ignore": [
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.js",
+    "src/**/*.test.js",
+    "node_modules",
+    "dist",
+    "coverage",
+    ".git",
+    "*.log"
+  ],
+  "exec": "sucrase-node --inspect src/index.ts",
+  "env": {
+    "NODE_ENV": "development",
+    "DEBUG": "*"
+  },
+  "delay": "500",
+  "verbose": true,
+  "colours": true,
+  "restartable": "rs",
+  "legacyWatch": false,
+  "pollingInterval": 500,
+  "events": {
+    "restart": "echo '🔄 Servidor reiniciado com debug'",
+    "crash": "echo '💥 Servidor crashou'",
+    "exit": "echo '👋 Servidor encerrado'"
+  }
+} 

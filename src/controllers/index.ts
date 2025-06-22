@@ -1,0 +1,1 @@
+export { UserController } from '../services/user.controller'; 
