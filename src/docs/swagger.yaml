@@ -1,0 +1,626 @@
+openapi: 3.0.0
+info:
+  title: Zero Delivery API
+  description: API completa para sistema de delivery com autenticação, auditoria e performance otimizada
+  version: 1.0.0
+  contact:
+    name: Zero Delivery Team
+    email: support@zerodelivery.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.zerodelivery.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        userId:
+          type: string
+          example: "user123"
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        phoneNumber:
+          type: string
+          example: "+258123456789"
+        role:
+          type: string
+          enum: [customer, driver, vendor]
+          example: "customer"
+        loyaltyPoints:
+          type: number
+          example: 150
+        isActive:
+          type: boolean
+          example: true
+        deliveryAddresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Address'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          example: "Rua das Flores"
+        city:
+          type: string
+          example: "Maputo"
+        country:
+          type: string
+          example: "Moçambique"
+        coordinates:
+          type: object
+          properties:
+            lat:
+              type: number
+              example: -25.9692
+            lng:
+              type: number
+              example: 32.5732
+
+    Order:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        customer:
+          $ref: '#/components/schemas/User'
+        vendor:
+          $ref: '#/components/schemas/Vendor'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        status:
+          type: string
+          enum: [pending, confirmed, preparing, ready, out_for_delivery, delivered, cancelled]
+          example: "pending"
+        total:
+          type: number
+          example: 59.58
+        createdAt:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        product:
+          $ref: '#/components/schemas/Product'
+        quantity:
+          type: number
+          example: 2
+        unitPrice:
+          type: number
+          example: 25.99
+        totalPrice:
+          type: number
+          example: 51.98
+
+    Product:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        name:
+          type: string
+          example: "Pizza Margherita"
+        price:
+          type: number
+          example: 25.99
+        type:
+          type: string
+          enum: [food, medicine, appliance, service]
+          example: "food"
+        isAvailable:
+          type: boolean
+          example: true
+        rating:
+          type: number
+          example: 4.5
+
+    Vendor:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        name:
+          type: string
+          example: "Pizza Express"
+        type:
+          type: string
+          enum: [restaurant, pharmacy, electronics, service]
+          example: "restaurant"
+        status:
+          type: string
+          enum: [active, suspended]
+          example: "active"
+        address:
+          $ref: '#/components/schemas/Address'
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Erro de validação"
+        errors:
+          type: array
+          items:
+            type: string
+          example: ["Campo obrigatório"]
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Verifica se a API está funcionando
+      tags:
+        - System
+      responses:
+        '200':
+          description: API funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "API está funcionando"
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/users:
+    get:
+      summary: Listar usuários
+      description: Lista todos os usuários com paginação
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Número da página
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Itens por página
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [customer, driver, vendor]
+          description: Filtrar por role
+      responses:
+        '200':
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    type: object
+                    properties:
+                      currentPage:
+                        type: integer
+                        example: 1
+                      totalPages:
+                        type: integer
+                        example: 5
+                      totalItems:
+                        type: integer
+                        example: 50
+
+    post:
+      summary: Criar usuário
+      description: Cria um novo usuário
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - role
+              properties:
+                userId:
+                  type: string
+                  example: "user123"
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                phoneNumber:
+                  type: string
+                  example: "+258123456789"
+                role:
+                  type: string
+                  enum: [customer, driver, vendor]
+                  example: "customer"
+      responses:
+        '201':
+          description: Usuário criado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Usuário criado com sucesso"
+                  data:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/{userId}:
+    get:
+      summary: Buscar usuário por ID
+      description: Busca um usuário específico por ID
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID do usuário
+      responses:
+        '200':
+          description: Usuário encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/orders:
+    get:
+      summary: Listar pedidos do usuário
+      description: Lista pedidos do usuário autenticado
+      tags:
+        - Orders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, preparing, ready, out_for_delivery, delivered, cancelled]
+          description: Filtrar por status
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Número da página
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Itens por página
+      responses:
+        '200':
+          description: Lista de pedidos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+
+    post:
+      summary: Criar pedido
+      description: Cria um novo pedido
+      tags:
+        - Orders
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vendor
+                - items
+                - deliveryAddress
+                - paymentMethod
+              properties:
+                vendor:
+                  type: string
+                  example: "vendor123"
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      product:
+                        type: string
+                        example: "product123"
+                      quantity:
+                        type: number
+                        example: 2
+                deliveryAddress:
+                  $ref: '#/components/schemas/Address'
+                paymentMethod:
+                  type: string
+                  enum: [visa, m-pesa, cash, paypal]
+                  example: "m-pesa"
+      responses:
+        '201':
+          description: Pedido criado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Pedido criado com sucesso"
+                  data:
+                    $ref: '#/components/schemas/Order'
+
+  /api/products:
+    get:
+      summary: Listar produtos
+      description: Lista produtos com filtros e paginação
+      tags:
+        - Products
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: vendor
+          in: query
+          schema:
+            type: string
+          description: Filtrar por vendor
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [food, medicine, appliance, service]
+          description: Filtrar por tipo
+        - name: isAvailable
+          in: query
+          schema:
+            type: boolean
+          description: Filtrar por disponibilidade
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Buscar por nome
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Número da página
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Itens por página
+      responses:
+        '200':
+          description: Lista de produtos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    type: object
+                    properties:
+                      currentPage:
+                        type: integer
+                        example: 1
+                      totalPages:
+                        type: integer
+                        example: 5
+                      totalItems:
+                        type: integer
+                        example: 50
+
+  /api/audit/logs:
+    get:
+      summary: Listar logs de auditoria
+      description: Lista logs de auditoria (apenas admins)
+      tags:
+        - Audit
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: entity
+          in: query
+          schema:
+            type: string
+          description: Filtrar por entidade
+        - name: userId
+          in: query
+          schema:
+            type: string
+          description: Filtrar por usuário
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [CREATE, UPDATE, DELETE, STATUS_CHANGE]
+          description: Filtrar por ação
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Data inicial
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Data final
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Número da página
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Itens por página
+      responses:
+        '200':
+          description: Lista de logs de auditoria
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entity:
+                          type: string
+                          example: "User"
+                        entityId:
+                          type: string
+                          example: "user123"
+                        action:
+                          type: string
+                          example: "UPDATE"
+                        userId:
+                          type: string
+                          example: "admin123"
+                        userRole:
+                          type: string
+                          example: "admin"
+                        timestamp:
+                          type: string
+                          format: date-time
+                        changes:
+                          type: array
+                          items:
+                            type: string
+                          example: ["email: old@example.com → new@example.com"]
+
+tags:
+  - name: System
+    description: Endpoints do sistema
+  - name: Users
+    description: Gerenciamento de usuários
+  - name: Orders
+    description: Gerenciamento de pedidos
+  - name: Products
+    description: Gerenciamento de produtos
+  - name: Vendors
+    description: Gerenciamento de estabelecimentos
+  - name: Audit
+    description: Logs de auditoria (apenas admins) 

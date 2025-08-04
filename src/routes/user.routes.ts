@@ -1,47 +1,51 @@
 import { Router } from 'express';
-import { UserController } from '../services/user.controller';
+import { UserController } from '../core/user/user.controller';
 import { AuthGuard } from '../guards/auth.guard';
-import { isCompleteAccount } from '../services/check.service';
 
 const router = Router();
+const userController = new UserController();
 
-// Rotas públicas (sem autenticação)
-router.post('/users',  AuthGuard,  UserController.createUser);
-router.put('/users/:userId', AuthGuard,  UserController.createUser);
-router.get('/exists/:phoneNumber',   UserController.checkUserExists);
+// ===== ROTAS PÚBLICAS =====
+// Rotas que não precisam de autenticação
+router.post('/', userController.createUser);
+router.get('/:userId/exists', userController.checkUserExists);
 
-router.get('/users/account/is-complete', AuthGuard, isCompleteAccount);
+// ===== ROTAS PROTEGIDAS =====
+// Todas as outras rotas precisam de autenticação
 
-// Rotas protegidas (com autenticação)
-// router.use(AuthGuard);
+// ===== ROTAS BÁSICAS DE USUÁRIO =====
+router.get('/', AuthGuard, userController.getAllUsers);
+router.get('/profile', AuthGuard, userController.getProfile); // ✅ Novo endpoint para perfil autenticado
+router.put('/profile', AuthGuard, userController.updateProfile); // ✅ Novo endpoint para atualizar perfil
+router.get('/:userId', AuthGuard, userController.getUserById); // Mantido para admins
+router.put('/:userId', AuthGuard, userController.updateUser); // Mantido para admins
+router.delete('/:userId', AuthGuard, userController.deactivateUser); // Mantido para admins
+router.patch('/:userId/reactivate', AuthGuard, userController.reactivateUser); // Mantido para admins
 
-// Rotas de perfil do usuário autenticado
-router.get('/profile', UserController.getProfile);
-router.get('/users/:userId', AuthGuard, UserController.getProfile);
-router.put('/profile', UserController.updateProfile);
+// ===== BUSCA POR DIFERENTES CRITÉRIOS =====
+router.get('/email/:email', AuthGuard, userController.getUserByEmail);
+router.get('/phone/:phoneNumber', AuthGuard, userController.getUserByPhone);
+router.get('/role/:role', AuthGuard, userController.getUsersByRole);
 
-// Rotas de administração (requerem autenticação)
-router.get('/', UserController.getAllUsers);
-router.get('/stats', UserController.getUserStats);
-router.get('/:id', UserController.getUserById);
-router.put('/:id', UserController.updateUser);
-router.delete('/:id', UserController.deleteUser);
-router.patch('/:id/toggle-status', UserController.toggleUserStatus);
+// ===== GERENCIAMENTO DE ENDEREÇOS =====
+router.post('/addresses', AuthGuard, userController.addDeliveryAddress); // ✅ Removido /:userId
+router.put('/addresses/:addressId', AuthGuard, userController.updateDeliveryAddress); // ✅ Removido /:userId
+router.delete('/addresses/:addressId', AuthGuard, userController.removeDeliveryAddress); // ✅ Removido /:userId
 
-// Rotas de endereços (baseadas no usuário autenticado)
-router.post('/addresses', UserController.addDeliveryAddress);
-router.put('/addresses/:addressIndex', UserController.updateDeliveryAddress);
-router.delete('/addresses/:addressIndex', UserController.removeDeliveryAddress);
+// ===== GERENCIAMENTO DE MÉTODOS DE PAGAMENTO =====
+router.post('/payment-methods', AuthGuard, userController.addPaymentMethod); // ✅ Removido /:userId
+router.delete('/payment-methods/:paymentMethod', AuthGuard, userController.removePaymentMethod); // ✅ Removido /:userId
 
-// Rotas de métodos de pagamento (baseadas no usuário autenticado)
-router.post('/payment-methods', UserController.addPaymentMethod);
-router.delete('/payment-methods/:paymentMethod', UserController.removePaymentMethod);
+// ===== SISTEMA DE FIDELIDADE =====
+router.post('/loyalty-points/add', AuthGuard, userController.addLoyaltyPoints); // ✅ Removido /:userId
+router.post('/loyalty-points/use', AuthGuard, userController.useLoyaltyPoints); // ✅ Removido /:userId
+router.get('/top-loyalty', AuthGuard, userController.getTopLoyaltyUsers);
 
-// Rotas de pontos de fidelidade (baseadas no usuário autenticado)
-router.post('/loyalty-points', UserController.addLoyaltyPoints);
-router.post('/loyalty-points/use', UserController.useLoyaltyPoints);
+// ===== HISTÓRICO DE PEDIDOS =====
+router.post('/orders', AuthGuard, userController.addOrderToHistory); // ✅ Removido /:userId
+router.get('/orders', AuthGuard, userController.getUserOrderHistory); // ✅ Removido /:userId
 
-// Rotas de histórico de pedidos (baseadas no usuário autenticado)
-router.get('/orders', UserController.getUserOrderHistory);
+// ===== ESTATÍSTICAS =====
+router.get('/stats/by-role', AuthGuard, userController.getUserStatsByRole);
 
-export default router; 
+export default router;

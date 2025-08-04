@@ -10,11 +10,21 @@
     "build": "tsc",
     "build:dev": "sucrase src -d dist --transforms typescript,imports",
     "build:watch": "sucrase src -d dist --transforms typescript,imports --watch",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest --testPathPattern=src/tests/unit",
+    "test:integration": "jest --testPathPattern=src/tests/integration",
+    "test:e2e": "jest --testPathPattern=src/tests/e2e",
+    "test:controllers": "jest --testPathPattern=src/tests/controllers",
+    "test:middleware": "jest --testPathPattern=src/tests/middleware",
     "test:db": "sucrase-node src/config/database.test.ts",
     "db:connect": "sucrase-node -e \"import('./src/config/database').then(db => db.connectDatabase())\"",
     "example:user": "sucrase-node src/examples/user-service-example.ts",
     "example:server": "sucrase-node src/examples/user-routes-example.ts",
+    "example:driver": "sucrase-node src/examples/driver-usage-example.ts",
+    "example:order": "sucrase-node src/examples/order-notification-example.ts",
+    "example:personal-delivery": "sucrase-node src/examples/personal-delivery-example.ts",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean"
   },
@@ -24,6 +34,7 @@
   "description": "",
   "dependencies": {
     "@clerk/clerk-sdk-node": "^5.1.6",
+    "@clerk/express": "^1.7.15",
     "body-parser": "^2.2.0",
     "compression": "^1.8.0",
     "cors": "^2.8.5",
@@ -35,14 +46,21 @@
     "morgan": "^1.10.0",
     "socket.io": "^4.8.1",
     "sucrase": "^3.35.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "zod": "^4.0.14"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/jest": "^29.5.0",
     "@types/morgan": "^1.9.10",
     "@types/node": "^20.11.0",
+    "@types/supertest": "^6.0.3",
+    "jest": "^29.5.0",
+    "mongodb-memory-server": "^10.2.0",
     "nodemon": "^3.1.10",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }

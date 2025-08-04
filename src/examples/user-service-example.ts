@@ -1,4 +1,4 @@
-import { UserService, CreateUserData, UpdateUserData } from '../services/user.service';
+import { UserService, CreateUserData, UpdateUserData } from '../core/user/user.service';
 
 // Exemplo de uso do UserService
 export const userServiceExample = async () => {
