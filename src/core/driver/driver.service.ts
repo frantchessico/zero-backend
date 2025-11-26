@@ -58,6 +58,8 @@ export interface DriverFilters {
 
 class DriverServices {
   private notificationService: NotificationService;
+  // Regra simples de negócio: percentual da taxa de entrega que vai para o driver
+  private readonly driverCommissionRate = 0.7; // 70% da deliveryFee
 
   constructor() {
     this.notificationService = new NotificationService();
@@ -448,6 +450,75 @@ class DriverServices {
     } catch (error: any) {
       throw new Error(`Erro ao obter estatísticas: ${error.message}`);
     }
+  }
+
+  /**
+   * Obter ganhos do driver (comissões) em um período
+   */
+  async getDriverEarnings(
+    driverId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<{
+    driverId: string;
+    totalDeliveries: number;
+    totalEarnings: number;
+    deliveries: Array<{
+      deliveryId: string;
+      orderId: string;
+      deliveryFee: number;
+      commission: number;
+      createdAt: Date;
+    }>;
+  }> {
+    const driver = await Driver.findById(driverId);
+    if (!driver) {
+      throw new Error('Driver não encontrado');
+    }
+
+    // Delivery.driver guarda o userId do driver em alguns fluxos;
+    // para simplificar, consideramos ambos: userId e driverId.
+    const match: any = {
+      status: 'delivered',
+      $or: [
+        { driver: driver.userId },
+        { driver: new Types.ObjectId(driverId) }
+      ]
+    };
+
+    if (startDate || endDate) {
+      match.createdAt = {};
+      if (startDate) match.createdAt.$gte = startDate;
+      if (endDate) match.createdAt.$lte = endDate;
+    }
+
+    const deliveries = await Delivery.find(match)
+      .populate('order', 'deliveryFee createdAt')
+      .exec();
+
+    let totalEarnings = 0;
+
+    const detailed = deliveries.map(d => {
+      const order: any = d.order;
+      const deliveryFee = order?.deliveryFee || 0;
+      const commission = deliveryFee * this.driverCommissionRate;
+      totalEarnings += commission;
+
+      return {
+        deliveryId: d._id.toString(),
+        orderId: order?._id?.toString() || '',
+        deliveryFee,
+        commission,
+        createdAt: order?.createdAt || d.createdAt
+      };
+    });
+
+    return {
+      driverId,
+      totalDeliveries: deliveries.length,
+      totalEarnings,
+      deliveries: detailed
+    };
   }
 
   // Verificar driver

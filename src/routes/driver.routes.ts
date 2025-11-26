@@ -16,11 +16,13 @@ router.get('/search', DriverController.getDrivers);
 // ===== ROTAS DO DRIVER AUTENTICADO =====
 router.get('/my-profile', AuthGuard, DriverController.getMyDriverProfile); // ✅ Novo endpoint para driver autenticado
 router.put('/my-profile', AuthGuard, DriverController.updateMyDriverProfile); // ✅ Novo endpoint para atualizar perfil
+router.get('/my-earnings', AuthGuard, DriverController.getMyEarnings); // ✅ Ganhos do driver autenticado
 
 // ===== ROTAS ADMINISTRATIVAS =====
 // Rotas que precisam de autenticação e são para admins
 router.post('/:userId/profile', AuthGuard, DriverController.createDriverProfile);
 router.get('/:id', AuthGuard, DriverController.getDriverById);
+router.get('/:id/earnings', AuthGuard, DriverController.getDriverEarnings);
 router.get('/user/:userId', AuthGuard, DriverController.getDriverByUserId);
 router.put('/:id', AuthGuard, DriverController.updateDriver);
 router.patch('/:id/location', AuthGuard, DriverController.updateLocation);

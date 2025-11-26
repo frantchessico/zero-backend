@@ -229,13 +229,23 @@ OrderSchema.post('findOneAndUpdate', async function(doc) {
         order: doc._id
       });
 
-      // Se entregue, atualizar pontos de fidelidade
+      // Se entregue, atualizar pontos de fidelidade usando LoyaltyService
       if (newStatus === 'delivered') {
-        const User = model('User');
-        const pointsEarned = Math.floor(doc.total / 10); // 1 ponto por cada 10 unidades
-        await User.findByIdAndUpdate(doc.customer, {
-          $inc: { loyaltyPoints: pointsEarned }
-        });
+        try {
+          const { loyaltyService } = await import('../core/loyalty/loyalty.service');
+          const vendorId = (doc.vendor as any)?.toString?.() || undefined;
+          
+          await loyaltyService.earnPoints({
+            userId: (doc.customer as any).toString(),
+            orderId: doc._id.toString(),
+            orderTotal: doc.total,
+            vendorId,
+            reason: 'Pedido entregue com sucesso'
+          });
+        } catch (loyaltyError: any) {
+          // Não falhar a atualização do pedido se o sistema de fidelidade falhar
+          console.error('Erro ao adicionar pontos de fidelidade:', loyaltyError);
+        }
       }
     } catch (error: any) {
       console.error('Error updating order status:', error);

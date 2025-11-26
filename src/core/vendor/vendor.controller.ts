@@ -70,6 +70,67 @@ export class VendorController {
   };
 
   /**
+   * GET /vendors/my-balance - Ver saldo do vendor autenticado
+   */
+  getMyBalance = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const clerkId = req.clerkPayload?.sub;
+      if (!clerkId) {
+        res.status(401).json({
+          success: false,
+          message: 'Usuário não autenticado'
+        });
+        return;
+      }
+
+      const user = await User.findOne({ clerkId });
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'Usuário não encontrado'
+        });
+        return;
+      }
+
+      if (user.role !== 'vendor') {
+        res.status(403).json({
+          success: false,
+          message: 'Apenas vendors podem acessar esta funcionalidade'
+        });
+        return;
+      }
+
+      const vendor = await this.vendorService.getVendorByOwner(user._id.toString());
+      if (!vendor || !vendor._id) {
+        res.status(404).json({
+          success: false,
+          message: 'Vendor não encontrado para este usuário'
+        });
+        return;
+      }
+
+      const { startDate, endDate } = req.query;
+
+      const balance = await this.vendorService.getVendorBalance(
+        vendor._id.toString(),
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+
+      res.status(200).json({
+        success: true,
+        data: balance
+      });
+    } catch (error: any) {
+      logger.error('Error fetching vendor balance:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Erro ao buscar saldo do vendor'
+      });
+    }
+  };
+
+  /**
    * PUT /vendors/my-vendor - Atualizar vendor do usuário autenticado
    */
   updateMyVendor = async (req: Request, res: Response): Promise<void> => {

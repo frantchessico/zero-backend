@@ -437,6 +437,93 @@ export class DriverController {
     }
   }
 
+  /**
+   * GET /drivers/my-earnings - Ganhos do driver autenticado
+   */
+  getMyEarnings = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const clerkId = req.clerkPayload?.sub;
+      if (!clerkId) {
+        res.status(401).json({
+          success: false,
+          message: 'Usuário não autenticado'
+        });
+        return;
+      }
+
+      const user = await User.findOne({ clerkId });
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'Usuário não encontrado'
+        });
+        return;
+      }
+
+      if (user.role !== 'driver') {
+        res.status(403).json({
+          success: false,
+          message: 'Apenas drivers podem ver ganhos'
+        });
+        return;
+      }
+
+      const driver = await this.driverService.getDriverByUserId(user._id.toString());
+      if (!driver || !driver._id) {
+        res.status(404).json({
+          success: false,
+          message: 'Perfil de driver não encontrado'
+        });
+        return;
+      }
+
+      const { startDate, endDate } = req.query;
+
+      const earnings = await this.driverService.getDriverEarnings(
+        driver._id.toString(),
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+
+      res.status(200).json({
+        success: true,
+        data: earnings
+      });
+    } catch (error: any) {
+      logger.error('Error fetching my earnings:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Erro ao buscar ganhos do driver'
+      });
+    }
+  };
+
+  /**
+   * GET /drivers/:id/earnings - Ganhos de um driver específico (admin)
+   */
+  async getDriverEarnings(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { startDate, endDate } = req.query;
+
+      const earnings = await this.driverService.getDriverEarnings(
+        id,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+
+      res.status(200).json({
+        success: true,
+        data: earnings
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Erro ao buscar ganhos do driver'
+      });
+    }
+  }
+
   // Atualizar rating do motorista
   async updateRating(req: Request, res: Response): Promise<void> {
     try {

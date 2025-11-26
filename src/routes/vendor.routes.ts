@@ -20,6 +20,7 @@ router.get('/count/status', vendorController.countVendorsByStatus);
 // ===== ROTAS DO VENDOR AUTENTICADO =====
 router.get('/my-vendor', AuthGuard, vendorController.getMyVendor); // ✅ Novo endpoint para vendor autenticado
 router.put('/my-vendor', AuthGuard, vendorController.updateMyVendor); // ✅ Novo endpoint para atualizar vendor
+router.get('/my-balance', AuthGuard, vendorController.getMyBalance); // ✅ Saldo do vendor autenticado
 
 // ===== ROTAS ADMINISTRATIVAS =====
 // Rotas que precisam de autenticação e são para admins

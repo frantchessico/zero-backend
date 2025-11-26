@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import userRoutes from './user.routes';
 import driverRoutes from './driver.routes';
+import routeRoutes from './route.routes';
 import vendorRoutes from './vendor.routes';
 import productRoutes from './product.routes';
 import orderRoutes from './order.routes';
@@ -8,6 +9,9 @@ import deliveryRoutes from './delivery.routes';
 import notificationRoutes from './notification.routes';
 import auditRoutes from './audit.routes';
 import personalDeliveryRoutes from './personal-delivery.routes';
+import promotionRoutes from './promotion.routes';
+import couponRoutes from './coupon.routes';
+import loyaltyRoutes from './loyalty.routes';
 
 const router = Router();
 
@@ -19,6 +23,9 @@ router.use(`${API_PREFIX}/users`, userRoutes);
 
 // Rotas de driver
 router.use(`${API_PREFIX}/drivers`, driverRoutes);
+
+// Rotas de rota (planejamento de entregas)
+router.use(`${API_PREFIX}/routes`, routeRoutes);
 
 // Rotas de vendor
 router.use(`${API_PREFIX}/vendors`, vendorRoutes);
@@ -40,6 +47,13 @@ router.use(`${API_PREFIX}/audit`, auditRoutes);
 
 // Rotas de entrega pessoal
 router.use(`${API_PREFIX}/personal-delivery`, personalDeliveryRoutes);
+
+// Promoções & descontos
+router.use(`${API_PREFIX}/promotions`, promotionRoutes);
+router.use(`${API_PREFIX}/coupons`, couponRoutes);
+
+// Sistema de fidelidade
+router.use(`${API_PREFIX}/loyalty`, loyaltyRoutes);
 
 // Rota de health check
 router.get('/health', (req, res) => {

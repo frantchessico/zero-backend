@@ -134,10 +134,21 @@ export interface IAddress {
   export interface IPayment {
     _id?: string;
     order: string; // order ID
+    payer?: string; // user ID de quem pagou
+    vendor?: string; // vendor/estabelecimento que recebe
     method: 'mpesa' | 'card' | 'cash';
     status: 'pending' | 'paid' | 'failed';
     amount: number;
     paidAt?: Date;
+    coupon?: string;
+    discountAmount?: number;
+    // Campos adicionais para integrações como M-Pesa
+    phoneNumber?: string;
+    paymentConversation?: string;
+    paymentRef?: string;
+    transaction?: string;
+    paymentType?: 'purchase' | 'subscription';
+    appPaymentOrigin?: string;
     createdAt?: Date;
     updatedAt?: Date;
   }

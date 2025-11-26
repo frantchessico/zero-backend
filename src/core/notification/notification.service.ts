@@ -1,6 +1,7 @@
 import { Notification } from '../../models/Notification';
 import { Driver } from '../../models/Driver';
 import { Order } from '../../models/Order';
+import { User } from '../../models/User';
 import { Types } from 'mongoose';
 import { INotification } from '../../models/interfaces';
 
@@ -394,6 +395,131 @@ export class NotificationService {
       return userIds.length;
     } catch (error) {
       console.error('Erro ao enviar notificações promocionais:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Notificar clientes sobre novo cupom disponível
+   */
+  async notifyCustomersAboutCoupon(
+    couponCode: string,
+    vendorName?: string,
+    discountInfo?: string
+  ): Promise<number> {
+    try {
+      // Buscar todos os clientes ativos
+      const customers = await User.find({
+        role: 'customer',
+        isActive: true
+      }).exec();
+
+      if (customers.length === 0) {
+        console.log('Nenhum cliente encontrado para notificar sobre cupom');
+        return 0;
+      }
+
+      const vendorText = vendorName ? ` da ${vendorName}` : '';
+      const discountText = discountInfo || '';
+      const message = `🎉 Novo cupom disponível${vendorText}! Use o código ${couponCode}${discountText ? ` e ganhe ${discountText}` : ''}`;
+
+      const notifications = customers.map(customer =>
+        this.createNotification(
+          (customer._id as Types.ObjectId).toString(),
+          'promotion',
+          message
+        )
+      );
+
+      await Promise.all(notifications);
+
+      console.log(`Notificação de cupom enviada para ${customers.length} clientes`);
+      return customers.length;
+    } catch (error) {
+      console.error('Erro ao notificar clientes sobre cupom:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Notificar clientes sobre nova promoção disponível
+   */
+  async notifyCustomersAboutPromotion(
+    promotionTitle: string,
+    vendorName?: string,
+    description?: string
+  ): Promise<number> {
+    try {
+      // Buscar todos os clientes ativos
+      const customers = await User.find({
+        role: 'customer',
+        isActive: true
+      }).exec();
+
+      if (customers.length === 0) {
+        console.log('Nenhum cliente encontrado para notificar sobre promoção');
+        return 0;
+      }
+
+      const vendorText = vendorName ? ` da ${vendorName}` : '';
+      const descText = description ? `: ${description}` : '';
+      const message = `🎊 Nova promoção${vendorText}! ${promotionTitle}${descText}`;
+
+      const notifications = customers.map(customer =>
+        this.createNotification(
+          (customer._id as Types.ObjectId).toString(),
+          'promotion',
+          message
+        )
+      );
+
+      await Promise.all(notifications);
+
+      console.log(`Notificação de promoção enviada para ${customers.length} clientes`);
+      return customers.length;
+    } catch (error) {
+      console.error('Erro ao notificar clientes sobre promoção:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Notificar todos os usuários ativos (clientes, drivers, etc) sobre cupom ou promoção
+   */
+  async notifyAllActiveUsers(
+    message: string,
+    excludeRoles?: string[]
+  ): Promise<number> {
+    try {
+      const query: any = {
+        isActive: true
+      };
+
+      if (excludeRoles && excludeRoles.length > 0) {
+        query.role = { $nin: excludeRoles };
+      }
+
+      const users = await User.find(query).exec();
+
+      if (users.length === 0) {
+        console.log('Nenhum usuário ativo encontrado para notificar');
+        return 0;
+      }
+
+      const notifications = users.map(user =>
+        this.createNotification(
+          (user._id as Types.ObjectId).toString(),
+          'promotion',
+          message
+        )
+      );
+
+      await Promise.all(notifications);
+
+      console.log(`Notificação enviada para ${users.length} usuários ativos`);
+      return users.length;
+    } catch (error) {
+      console.error('Erro ao notificar todos os usuários:', error);
       throw error;
     }
   }

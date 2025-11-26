@@ -3,12 +3,16 @@ import { OrderService } from './order.service';
 import { QueryService } from '../audit/query.service';
 import { User } from '../../models/User';
 import { logger } from '../../utils/logger';
+import { PaymentService } from '../payment/payment.service';
+import { couponService } from '../coupon/coupon.service';
 
 export class OrderController {
   private orderService: OrderService;
+  private paymentService: PaymentService;
 
   constructor() {
     this.orderService = new OrderService();
+    this.paymentService = new PaymentService();
   }
 
   /**
@@ -481,18 +485,18 @@ export class OrderController {
   processPayment = async (req: Request, res: Response): Promise<void> => {
     try {
       const { orderId } = req.params;
-      const { paymentStatus } = req.body;
+      const { phoneNumber, amount, paymentType, appPaymentOrigin, couponCode } = req.body;
 
-      if (!paymentStatus) {
+      if (!phoneNumber || !amount) {
         res.status(400).json({
           success: false,
-          message: 'Status do pagamento é obrigatório'
+          message: 'phoneNumber e amount são obrigatórios para pagamento M-Pesa'
         });
         return;
       }
 
-      const order = await this.orderService.updatePaymentStatus(orderId, paymentStatus);
-
+      // Buscar pedido para validar cupom e valor
+      const order = await this.orderService.getOrderById(orderId);
       if (!order) {
         res.status(404).json({
           success: false,
@@ -501,10 +505,74 @@ export class OrderController {
         return;
       }
 
+      let finalAmount = amount;
+      let couponId: string | undefined;
+      let discountAmount: number | undefined;
+
+      // Aplicar cupom se informado
+      if (couponCode) {
+        const validation = await couponService.validateCoupon({
+          code: couponCode,
+          vendorId: (order.vendor as any)?.toString?.() || undefined,
+          paymentMethod: 'mpesa',
+          orderTotal: order.total
+        });
+
+        if (!validation.valid) {
+          res.status(400).json({
+            success: false,
+            message: validation.reason || 'Cupom inválido'
+          });
+          return;
+        }
+
+        couponId = validation.couponId;
+        discountAmount = validation.discountAmount;
+        finalAmount = order.total - (discountAmount || 0);
+
+        if (finalAmount < 0) finalAmount = 0;
+      }
+
+      const { mpesaResponse, paymentLog } = await this.paymentService.createMpesaPayment({
+        orderId,
+        phoneNumber,
+        amount: finalAmount,
+        paymentType,
+        appPaymentOrigin,
+        couponId,
+        discountAmount
+      });
+
+      // Atualizar status de pagamento da order com base no resultado
+      const finalStatus =
+        (mpesaResponse as any)?.status === 'INSUFFICIENT_BALANCE' ||
+        (mpesaResponse as any)?.status === 'FAILED'
+          ? 'failed'
+          : 'paid';
+
+      const updatedOrder = await this.orderService.updatePaymentStatus(orderId, finalStatus);
+
+      if (!updatedOrder) {
+        res.status(404).json({
+          success: false,
+          message: 'Pedido não encontrado'
+        });
+        return;
+      }
+
+      // Registrar uso do cupom se aplicável
+      if (couponId) {
+        await couponService.registerUse(couponId);
+      }
+
       res.status(200).json({
         success: true,
-        message: 'Status do pagamento atualizado com sucesso',
-        data: order
+        message: 'Pagamento processado com sucesso',
+        data: {
+          order: updatedOrder,
+          payment: paymentLog,
+          mpesa: mpesaResponse
+        }
       });
     } catch (error: any) {
       logger.error('Error processing payment:', error);

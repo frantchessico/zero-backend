@@ -2,6 +2,7 @@
 import { Types } from 'mongoose';
 import { IVendor } from '../../models/interfaces';
 import { Vendor } from '../../models/Vendor';
+import { Payment } from '../../models/Payment';
 
 export class VendorService {
   /**
@@ -14,6 +15,53 @@ export class VendorService {
     } catch (error) {
       throw error;
     }
+  }
+
+  /**
+   * Obter saldo e resumo financeiro do vendor (com base em Payments)
+   */
+  async getVendorBalance(
+    vendorId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<{
+    vendorId: string;
+    totalReceived: number;
+    totalPaidTransactions: number;
+    byMethod: Record<string, { total: number; count: number }>;
+  }> {
+    const match: any = {
+      vendor: new Types.ObjectId(vendorId),
+      status: 'paid'
+    };
+
+    if (startDate || endDate) {
+      match.paidAt = {};
+      if (startDate) match.paidAt.$gte = startDate;
+      if (endDate) match.paidAt.$lte = endDate;
+    }
+
+    const payments = await Payment.find(match).exec();
+
+    const byMethod: Record<string, { total: number; count: number }> = {};
+    let totalReceived = 0;
+
+    payments.forEach(p => {
+      const method = p.method || 'unknown';
+      if (!byMethod[method]) {
+        byMethod[method] = { total: 0, count: 0 };
+      }
+      byMethod[method].total += p.amount;
+      byMethod[method].count += 1;
+      totalReceived += p.amount;
+    });
+
+    return {
+      vendorId,
+      totalReceived,
+      totalPaidTransactions: payments.length,
+      byMethod
+    };
   }
 
   /**

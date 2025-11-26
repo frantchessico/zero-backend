@@ -1,0 +1,528 @@
+{
+  "profiles": {
+    "customer": {
+      "description": "Perfil de cliente/consumidor - pode fazer pedidos, acumular pontos de fidelidade",
+      "user": {
+        "_id": "65f1a2b3c4d5e6f7g8h9i0j1",
+        "userId": "customer_001",
+        "clerkId": "user_2abc123def456",
+        "phoneNumber": "+258841234567",
+        "email": "joao.silva@example.com",
+        "role": "customer",
+        "deliveryAddresses": [
+          {
+            "streetType": "Avenida",
+            "streetName": "Eduardo Mondlane",
+            "number": "123",
+            "neighborhood": "Manga Mascarenhas",
+            "city": "Beira",
+            "province": "Sofala",
+            "country": "Moçambique",
+            "postalCode": "2100",
+            "referencePoint": "Próximo ao mercado central",
+            "label": "Home",
+            "coordinates": {
+              "lat": -19.8333,
+              "lng": 34.8500
+            }
+          },
+          {
+            "streetType": "Rua",
+            "streetName": "25 de Setembro",
+            "number": "456",
+            "neighborhood": "Macuti",
+            "city": "Beira",
+            "province": "Sofala",
+            "country": "Moçambique",
+            "label": "Work",
+            "coordinates": {
+              "lat": -19.8400,
+              "lng": 34.8600
+            }
+          }
+        ],
+        "orderHistory": [
+          "65f1a2b3c4d5e6f7g8h9i0j2",
+          "65f1a2b3c4d5e6f7g8h9i0j3",
+          "65f1a2b3c4d5e6f7g8h9i0j4"
+        ],
+        "paymentMethods": ["m-pesa", "cash"],
+        "loyaltyPoints": 450,
+        "isActive": true,
+        "vendorId": null,
+        "createdAt": "2024-01-15T10:30:00.000Z",
+        "updatedAt": "2024-03-20T14:22:00.000Z"
+      },
+      "loyaltyStatus": {
+        "userId": "65f1a2b3c4d5e6f7g8h9i0j1",
+        "totalPoints": 450,
+        "availablePoints": 450,
+        "currentLevel": {
+          "name": "bronze",
+          "displayName": "Bronze",
+          "minPoints": 0,
+          "benefits": ["Acesso ao programa de fidelidade"],
+          "discountPercentage": 0
+        },
+        "nextLevel": {
+          "name": "silver",
+          "displayName": "Prata",
+          "minPoints": 500,
+          "pointsNeeded": 50
+        },
+        "pointsExpiringSoon": 0,
+        "totalEarned": 500,
+        "totalRedeemed": 50,
+        "transactions": [
+          {
+            "_id": "65f1a2b3c4d5e6f7g8h9i0j5",
+            "type": "earned",
+            "points": 50,
+            "description": "Pontos ganhos por pedido de 500.00 MT",
+            "order": {
+              "_id": "65f1a2b3c4d5e6f7g8h9i0j2",
+              "total": 500,
+              "status": "delivered"
+            },
+            "createdAt": "2024-03-15T10:00:00.000Z"
+          }
+        ]
+      },
+      "recentOrders": [
+        {
+          "_id": "65f1a2b3c4d5e6f7g8h9i0j2",
+          "status": "delivered",
+          "total": 500,
+          "vendor": {
+            "name": "Restaurante Bom Sabor",
+            "type": "restaurant"
+          },
+          "createdAt": "2024-03-15T09:00:00.000Z"
+        }
+      ]
+    },
+
+    "driver": {
+      "description": "Perfil de motorista/entregador - pode receber e executar entregas",
+      "user": {
+        "_id": "65f1a2b3c4d5e6f7g8h9i0k1",
+        "userId": "driver_001",
+        "clerkId": "user_2xyz789abc123",
+        "phoneNumber": "+258842345678",
+        "email": "carlos.motorista@example.com",
+        "role": "driver",
+        "deliveryAddresses": [],
+        "orderHistory": [],
+        "paymentMethods": ["m-pesa"],
+        "loyaltyPoints": 0,
+        "isActive": true,
+        "vendorId": null,
+        "createdAt": "2024-01-10T08:00:00.000Z",
+        "updatedAt": "2024-03-20T16:30:00.000Z"
+      },
+      "driverProfile": {
+        "_id": "65f1a2b3c4d5e6f7g8h9i0k2",
+        "userId": "65f1a2b3c4d5e6f7g8h9i0k1",
+        "licenseNumber": "LIC-MZ-2024-001234",
+        "vehicleInfo": {
+          "type": "motorcycle",
+          "model": "Honda CG 150",
+          "plateNumber": "ABC-1234",
+          "color": "Vermelho"
+        },
+        "currentLocation": {
+          "latitude": -19.8333,
+          "longitude": 34.8500,
+          "lastUpdated": "2024-03-20T16:30:00.000Z"
+        },
+        "isAvailable": true,
+        "isVerified": true,
+        "rating": 4.8,
+        "reviewCount": 127,
+        "totalDeliveries": 342,
+        "completedDeliveries": 335,
+        "averageDeliveryTime": 25.5,
+        "workingHours": {
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        "acceptedPaymentMethods": ["m-pesa", "cash"],
+        "deliveryAreas": [
+          "Manga Mascarenhas",
+          "Macuti",
+          "Matacuane",
+          "Dondo"
+        ],
+        "documents": {
+          "license": "https://storage.example.com/drivers/license_001234.pdf",
+          "insurance": "https://storage.example.com/drivers/insurance_001234.pdf",
+          "vehicleRegistration": "https://storage.example.com/drivers/registration_001234.pdf"
+        },
+        "emergencyContact": {
+          "name": "Maria Santos",
+          "phoneNumber": "+258843456789",
+          "relationship": "Esposa"
+        },
+        "createdAt": "2024-01-10T08:15:00.000Z",
+        "updatedAt": "2024-03-20T16:30:00.000Z"
+      },
+      "earnings": {
+        "driverId": "65f1a2b3c4d5e6f7g8h9i0k2",
+        "totalDeliveries": 335,
+        "totalEarnings": 16750,
+        "deliveries": [
+          {
+            "deliveryId": "65f1a2b3c4d5e6f7g8h9i0k3",
+            "orderId": "65f1a2b3c4d5e6f7g8h9i0j2",
+            "deliveryFee": 50,
+            "commission": 35,
+            "createdAt": "2024-03-15T10:00:00.000Z"
+          }
+        ]
+      },
+      "activeRoute": {
+        "_id": "65f1a2b3c4d5e6f7g8h9i0k4",
+        "driver": "65f1a2b3c4d5e6f7g8h9i0k2",
+        "status": "in_progress",
+        "personalDeliveries": [],
+        "deliveries": [
+          "65f1a2b3c4d5e6f7g8h9i0k5"
+        ],
+        "startTime": "2024-03-20T16:00:00.000Z"
+      }
+    },
+
+    "vendor": {
+      "description": "Perfil de loja/estabelecimento - pode criar produtos, receber pedidos, gerenciar promoções",
+      "user": {
+        "_id": "65f1a2b3c4d5e6f7g8h9i0v1",
+        "userId": "vendor_001",
+        "clerkId": "user_2vendor456def",
+        "phoneNumber": "+258843456789",
+        "email": "contato@bomsabor.com",
+        "role": "vendor",
+        "deliveryAddresses": [],
+        "orderHistory": [],
+        "paymentMethods": ["m-pesa"],
+        "loyaltyPoints": 0,
+        "isActive": true,
+        "vendorId": "65f1a2b3c4d5e6f7g8h9i0v2",
+        "createdAt": "2024-01-05T09:00:00.000Z",
+        "updatedAt": "2024-03-20T15:00:00.000Z"
+      },
+      "vendorProfile": {
+        "_id": "65f1a2b3c4d5e6f7g8h9i0v2",
+        "name": "Restaurante Bom Sabor",
+        "type": "restaurant",
+        "owner": "65f1a2b3c4d5e6f7g8h9i0v1",
+        "address": {
+          "street": "Avenida Eduardo Mondlane",
+          "district": "Manga Mascarenhas",
+          "city": "Beira",
+          "coordinates": {
+            "lat": -19.8333,
+            "lng": 34.8500
+          }
+        },
+        "status": "active",
+        "open24h": false,
+        "temporarilyClosed": false,
+        "workingHours": [
+          {
+            "day": 1,
+            "open": "08:00",
+            "close": "20:00",
+            "active": true
+          },
+          {
+            "day": 2,
+            "open": "08:00",
+            "close": "20:00",
+            "active": true
+          },
+          {
+            "day": 3,
+            "open": "08:00",
+            "close": "20:00",
+            "active": true
+          },
+          {
+            "day": 4,
+            "open": "08:00",
+            "close": "20:00",
+            "active": true
+          },
+          {
+            "day": 5,
+            "open": "08:00",
+            "close": "22:00",
+            "active": true
+          },
+          {
+            "day": 6,
+            "open": "09:00",
+            "close": "22:00",
+            "active": true
+          },
+          {
+            "day": 0,
+            "open": "10:00",
+            "close": "18:00",
+            "active": true
+          }
+        ],
+        "createdAt": "2024-01-05T09:15:00.000Z",
+        "updatedAt": "2024-03-20T15:00:00.000Z"
+      },
+      "balance": {
+        "vendorId": "65f1a2b3c4d5e6f7g8h9i0v2",
+        "totalReceived": 125000,
+        "totalPaidTransactions": 250,
+        "byMethod": {
+          "mpesa": {
+            "total": 100000,
+            "count": 200
+          },
+          "cash": {
+            "total": 25000,
+            "count": 50
+          }
+        }
+      },
+      "products": [
+        {
+          "_id": "65f1a2b3c4d5e6f7g8h9i0v3",
+          "name": "Frango Grelhado",
+          "type": "food",
+          "price": 250,
+          "stock": 50,
+          "vendor": "65f1a2b3c4d5e6f7g8h9i0v2",
+          "description": "Frango grelhado com batata frita e salada",
+          "isAvailable": true
+        }
+      ],
+      "promotions": [
+        {
+          "_id": "65f1a2b3c4d5e6f7g8h9i0v4",
+          "vendor": "65f1a2b3c4d5e6f7g8h9i0v2",
+          "name": "Desconto de 20%",
+          "description": "20% de desconto em todos os produtos",
+          "type": "percentage",
+          "discountValue": 20,
+          "status": "active",
+          "startDate": "2024-03-01T00:00:00.000Z",
+          "endDate": "2024-03-31T23:59:59.000Z"
+        }
+      ],
+      "coupons": [
+        {
+          "_id": "65f1a2b3c4d5e6f7g8h9i0v5",
+          "vendor": "65f1a2b3c4d5e6f7g8h9i0v2",
+          "code": "BOMSABOR10",
+          "title": "10% de Desconto",
+          "type": "percentage",
+          "value": 10,
+          "isActive": true,
+          "usedCount": 45,
+          "maxUses": 100
+        }
+      ],
+      "recentOrders": [
+        {
+          "_id": "65f1a2b3c4d5e6f7g8h9i0v6",
+          "customer": {
+            "userId": "customer_001",
+            "phoneNumber": "+258841234567"
+          },
+          "total": 500,
+          "status": "preparing",
+          "paymentStatus": "paid",
+          "createdAt": "2024-03-20T14:00:00.000Z"
+        }
+      ]
+    },
+
+    "admin": {
+      "description": "Perfil de administrador - acesso total ao sistema, pode gerenciar todos os recursos",
+      "user": {
+        "_id": "65f1a2b3c4d5e6f7g8h9i0a1",
+        "userId": "admin_001",
+        "clerkId": "user_2admin789xyz",
+        "phoneNumber": "+258844567890",
+        "email": "admin@zero-delivery.com",
+        "role": "admin",
+        "deliveryAddresses": [],
+        "orderHistory": [],
+        "paymentMethods": [],
+        "loyaltyPoints": 0,
+        "isActive": true,
+        "vendorId": null,
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "updatedAt": "2024-03-20T17:00:00.000Z"
+      },
+      "permissions": {
+        "canManageUsers": true,
+        "canManageVendors": true,
+        "canManageDrivers": true,
+        "canManageOrders": true,
+        "canManageProducts": true,
+        "canManagePromotions": true,
+        "canManageCoupons": true,
+        "canManageLoyaltyPrograms": true,
+        "canViewAnalytics": true,
+        "canManageSettings": true,
+        "canViewAuditLogs": true
+      },
+      "dashboardStats": {
+        "totalUsers": 1250,
+        "totalCustomers": 980,
+        "totalDrivers": 150,
+        "totalVendors": 120,
+        "totalOrders": 15420,
+        "totalRevenue": 3850000,
+        "activeOrders": 45,
+        "pendingDeliveries": 12,
+        "todayOrders": 87,
+        "todayRevenue": 43500
+      },
+      "systemSettings": {
+        "loyaltyProgram": {
+          "isActive": true,
+          "pointsPerCurrency": 0.1,
+          "minOrderAmountForPoints": 50
+        },
+        "deliveryFee": {
+          "baseFee": 50,
+          "perKm": 10,
+          "maxFee": 200
+        },
+        "commission": {
+          "driverCommissionRate": 0.7,
+          "platformCommissionRate": 0.3
+        }
+      }
+    }
+  },
+
+  "apiEndpoints": {
+    "customer": {
+      "profile": "GET /api/users/me",
+      "orders": "GET /api/orders",
+      "createOrder": "POST /api/orders",
+      "loyaltyStatus": "GET /api/loyalty/status",
+      "redeemReward": "POST /api/loyalty/redeem",
+      "availableRewards": "GET /api/loyalty/rewards",
+      "coupons": "GET /api/coupons/available",
+      "validateCoupon": "POST /api/coupons/validate",
+      "notifications": "GET /api/notifications/user/:userId"
+    },
+    "driver": {
+      "profile": "GET /api/drivers/me",
+      "updateLocation": "PUT /api/drivers/me/location",
+      "toggleAvailability": "PATCH /api/drivers/me/availability",
+      "myDeliveries": "GET /api/deliveries/my",
+      "myEarnings": "GET /api/drivers/my-earnings",
+      "buildRoute": "POST /api/routes/my/build",
+      "activeRoute": "GET /api/routes/my/active",
+      "acceptDelivery": "POST /api/deliveries/:id/accept",
+      "updateDeliveryStatus": "PATCH /api/deliveries/:id/status"
+    },
+    "vendor": {
+      "profile": "GET /api/vendors/me",
+      "myBalance": "GET /api/vendors/my-balance",
+      "myProducts": "GET /api/products/vendor",
+      "createProduct": "POST /api/products",
+      "myOrders": "GET /api/orders/vendor/orders",
+      "updateOrderStatus": "PATCH /api/orders/:id/vendor/status",
+      "myPromotions": "GET /api/promotions/my-promotions",
+      "createPromotion": "POST /api/promotions/my-promotions",
+      "myCoupons": "GET /api/coupons/my",
+      "createCoupon": "POST /api/coupons",
+      "loyaltyProgram": "POST /api/loyalty/program"
+    },
+    "admin": {
+      "allUsers": "GET /api/users",
+      "allVendors": "GET /api/vendors",
+      "allDrivers": "GET /api/drivers",
+      "allOrders": "GET /api/orders",
+      "analytics": "GET /api/analytics",
+      "auditLogs": "GET /api/audit",
+      "systemSettings": "GET /api/settings",
+      "updateSystemSettings": "PUT /api/settings",
+      "loyaltyProgram": "POST /api/loyalty/program",
+      "driverEarnings": "GET /api/drivers/:id/earnings"
+    }
+  },
+
+  "exampleRequests": {
+    "customerCreateOrder": {
+      "method": "POST",
+      "endpoint": "/api/orders",
+      "headers": {
+        "Authorization": "Bearer <clerk_token>",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "vendor": "65f1a2b3c4d5e6f7g8h9i0v2",
+        "items": [
+          {
+            "product": "65f1a2b3c4d5e6f7g8h9i0v3",
+            "quantity": 2,
+            "unitPrice": 250,
+            "totalPrice": 500
+          }
+        ],
+        "deliveryAddress": {
+          "streetType": "Avenida",
+          "streetName": "Eduardo Mondlane",
+          "number": "123",
+          "neighborhood": "Manga Mascarenhas",
+          "city": "Beira",
+          "province": "Sofala",
+          "country": "Moçambique",
+          "coordinates": {
+            "lat": -19.8333,
+            "lng": 34.8500
+          }
+        },
+        "deliveryType": "delivery",
+        "orderType": "food",
+        "couponCode": "BOMSABOR10"
+      }
+    },
+    "driverUpdateLocation": {
+      "method": "PUT",
+      "endpoint": "/api/drivers/me/location",
+      "headers": {
+        "Authorization": "Bearer <clerk_token>",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "latitude": -19.8333,
+        "longitude": 34.8500
+      }
+    },
+    "vendorCreateCoupon": {
+      "method": "POST",
+      "endpoint": "/api/coupons",
+      "headers": {
+        "Authorization": "Bearer <clerk_token>",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "code": "PROMO20",
+        "title": "20% de Desconto",
+        "description": "Desconto especial de 20%",
+        "type": "percentage",
+        "value": 20,
+        "allowedPaymentMethods": ["mpesa", "card"],
+        "minOrderAmount": 100,
+        "maxDiscountAmount": 50,
+        "maxUses": 100,
+        "startDate": "2024-03-01T00:00:00.000Z",
+        "endDate": "2024-03-31T23:59:59.000Z"
+      }
+    }
+  }
+}
+
