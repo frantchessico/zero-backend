@@ -25,6 +25,7 @@ import promotionRoutes from './routes/promotion.routes'
 import couponRoutes from './routes/coupon.routes'
 import loyaltyRoutes from './routes/loyalty.routes'
 import chatRoutes from './routes/chat.routes'
+import clerkWebhookRoutes from './routes/clerk-webhook.routes'
 
 // Importar middlewares de segurança
 import { authenticateUser } from './middleware/auth.middleware'
@@ -108,6 +109,9 @@ app.get('/health', (req, res) => {
 });
 
 // ===== ROTAS PROTEGIDAS =====
+
+// Webhooks públicos
+app.use('/api/webhooks', clerkWebhookRoutes)
 
 // Logging de ações para todas as rotas da API
 app.use('/api', logAction('API_REQUEST'))

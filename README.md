@@ -18,10 +18,34 @@ API Node/Express do projeto Zero.
 - o backend não emite JWT próprio e não mantém fluxo local de senha com `bcrypt`
 - variáveis como `JWT_SECRET`, `JWT_EXPIRES_IN` e `BCRYPT_ROUNDS` foram removidas do setup porque não fazem parte da arquitetura atual
 
+## Webhook do Clerk
+
+O backend expõe um webhook público para sincronizar utilizadores do Clerk com a coleção local:
+
+- endpoint: `POST /api/webhooks/clerk`
+- secret exigido: `CLERK_WEBHOOK_SIGNING_SECRET`
+- eventos tratados:
+  - `user.created`
+  - `user.updated`
+  - `user.deleted`
+
+Comportamento:
+
+- `user.created` e `user.updated` fazem `upsert` do utilizador local
+- a sincronização prioriza `clerkId` e `userId`, e consegue associar um utilizador legado por `email`
+- `user.deleted` faz `soft delete` local com `isActive=false`
+
+Arquivos centrais:
+
+- [src/routes/clerk-webhook.routes.ts](/Users/fumanefilms/Desktop/Desktop/zero/zero-backend/src/routes/clerk-webhook.routes.ts:1)
+- [src/core/clerk-webhook/clerk-webhook.controller.ts](/Users/fumanefilms/Desktop/Desktop/zero/zero-backend/src/core/clerk-webhook/clerk-webhook.controller.ts:1)
+- [src/core/clerk-webhook/clerk-webhook.service.ts](/Users/fumanefilms/Desktop/Desktop/zero/zero-backend/src/core/clerk-webhook/clerk-webhook.service.ts:1)
+
 ## Endpoints base
 
 - Base local: `http://localhost:PORT/api`
 - Health check: `GET /health`
+- Webhook Clerk: `POST /api/webhooks/clerk`
 - Principais recursos:
   - `/api/users`
   - `/api/vendors`
@@ -101,6 +125,7 @@ Smoke test do tracking:
   - `MONGODB_URI`
   - `CLERK_SECRET_KEY`
   - `CLERK_PUBLISHABLE_KEY`
+  - `CLERK_WEBHOOK_SIGNING_SECRET`
   - `ALLOWED_ORIGINS` ou `CORS_ORIGIN`
   - `MAPBOX_ACCESS_TOKEN`
   - `PUBLIC_API_URL` ou `PUBLIC_APP_URL`

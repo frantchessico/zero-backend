@@ -29,6 +29,7 @@ const promotion_routes_1 = __importDefault(require("./routes/promotion.routes"))
 const coupon_routes_1 = __importDefault(require("./routes/coupon.routes"));
 const loyalty_routes_1 = __importDefault(require("./routes/loyalty.routes"));
 const chat_routes_1 = __importDefault(require("./routes/chat.routes"));
+const clerk_webhook_routes_1 = __importDefault(require("./routes/clerk-webhook.routes"));
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const app = (0, express_1.default)();
 const isTestEnv = process.env.NODE_ENV === 'test';
@@ -93,6 +94,8 @@ app.get('/health', (req, res) => {
     });
 });
 // ===== ROTAS PROTEGIDAS =====
+// Webhooks públicos
+app.use('/api/webhooks', clerk_webhook_routes_1.default);
 // Logging de ações para todas as rotas da API
 app.use('/api', (0, auth_middleware_1.logAction)('API_REQUEST'));
 // Rotas da API
