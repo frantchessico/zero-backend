@@ -6,13 +6,18 @@ export const PaymentSchema = new Schema({
   payer: { type: Types.ObjectId, ref: 'User' },   // Usuário que está pagando (lógico)
   vendor: { type: Types.ObjectId, ref: 'Vendor' }, // Estabelecimento que recebe
   method: { type: String, enum: ['mpesa', 'card', 'cash'], required: true },
-  status: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending' },
   amount: { type: Number, required: true },
   paidAt: Date,
 
   // Informações de desconto/cupom aplicados
   coupon: { type: Types.ObjectId, ref: 'Coupon' },
   discountAmount: { type: Number, default: 0 },
+  providerStatus: { type: String },
+  providerPayload: { type: Schema.Types.Mixed },
+  refundReason: { type: String },
+  refundedAt: { type: Date },
+  idempotencyKey: { type: String, index: true, sparse: true },
 
   // Campos específicos de integrações externas (ex: M-Pesa)
   phoneNumber: { type: String },
@@ -24,5 +29,8 @@ export const PaymentSchema = new Schema({
 }, {
   timestamps: true
 });
+
+PaymentSchema.index({ order: 1, createdAt: -1 });
+PaymentSchema.index({ order: 1, status: 1 });
 
 export const Payment = model('Payment', PaymentSchema);

@@ -294,13 +294,7 @@ describe('UserController', () => {
       expect(mockStatus).toHaveBeenCalledWith(200);
       expect(mockJson).toHaveBeenCalledWith({
         success: true,
-        data: users,
-        pagination: {
-          currentPage: 1,
-          totalPages: 1,
-          totalItems: 2,
-          itemsPerPage: 10
-        }
+        data: paginationResult,
       });
     });
   });

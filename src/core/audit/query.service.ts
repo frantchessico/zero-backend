@@ -1,6 +1,6 @@
 import { User } from '../../models/User';
 import { Order } from '../../models/Order';
-import { Product } from '../../models/Product';
+import Product from '../../models/Product';
 import { Vendor } from '../../models/Vendor';
 import { Delivery } from '../../models/Delivery';
 import { Category } from '../../models/Category';

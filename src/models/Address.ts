@@ -1,5 +1,6 @@
 import { Schema } from "mongoose";
 import { IAddress } from "./interfaces";
+import { GeoPointSchema } from "./Geo";
 
 
   export const AddressSchema = new Schema<IAddress>({
@@ -17,6 +18,31 @@ import { IAddress } from "./interfaces";
     coordinates: {
       lat: { type: Number, required: false },
       lng: { type: Number, required: false }
+    },
+    geoPoint: {
+      type: GeoPointSchema,
+      required: false
     }
   }, { _id: true });
+
+  AddressSchema.pre('validate', function (next) {
+    if (this.coordinates?.lat !== undefined && this.coordinates?.lng !== undefined) {
+      this.geoPoint = {
+        type: 'Point',
+        coordinates: [this.coordinates.lng, this.coordinates.lat]
+      } as any;
+    } else if (this.geoPoint?.coordinates?.length === 2) {
+      const [lng, lat] = this.geoPoint.coordinates;
+      this.coordinates = { lat, lng } as any;
+    }
+
+    next();
+  });
+
+  AddressSchema.virtual('street').get(function () {
+    return [this.streetType, this.streetName].filter(Boolean).join(' ').trim();
+  });
+
+  AddressSchema.set('toJSON', { virtuals: true });
+  AddressSchema.set('toObject', { virtuals: true });
   

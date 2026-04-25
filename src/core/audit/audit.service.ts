@@ -45,6 +45,45 @@ AuditLogSchema.index({ action: 1, timestamp: -1 });
 const AuditLog = model('AuditLog', AuditLogSchema);
 
 export class AuditService {
+  static async logAction(auditData: {
+    action: string;
+    entity?: string;
+    entityId?: string;
+    userId: string;
+    userRole: string;
+    method?: string;
+    path?: string;
+    ip?: string;
+    userAgent?: string;
+    timestamp?: Date;
+    requestBody?: any;
+    queryParams?: any;
+  }): Promise<void> {
+    try {
+      const auditLog = new AuditLog({
+        entity: auditData.entity || 'unknown',
+        entityId: auditData.entityId || 'unknown',
+        action: 'UPDATE',
+        userId: auditData.userId,
+        userRole: auditData.userRole,
+        newValues: auditData.requestBody,
+        timestamp: auditData.timestamp || new Date(),
+        ipAddress: auditData.ip,
+        userAgent: auditData.userAgent,
+        metadata: {
+          actionLabel: auditData.action,
+          method: auditData.method,
+          path: auditData.path,
+          queryParams: auditData.queryParams,
+        },
+      });
+
+      await auditLog.save();
+    } catch (error) {
+      logger.error('Error logging audit action:', error);
+    }
+  }
+
   
   /**
    * Registrar mudança em entidade

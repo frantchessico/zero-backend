@@ -6,6 +6,8 @@ beforeAll(async () => {
   // Configurar variáveis de ambiente para teste
   process.env.NODE_ENV = 'test';
   process.env.MONGODB_URI = 'mongodb://localhost:27017/test';
+  process.env.CLERK_PUBLISHABLE_KEY = 'pk_test_mock_key';
+  process.env.CLERK_SECRET_KEY = 'sk_test_mock_key';
   
   // Configurar timezone para testes
   process.env.TZ = 'UTC';

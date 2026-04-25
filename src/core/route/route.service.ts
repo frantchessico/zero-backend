@@ -2,13 +2,14 @@ import { Types } from 'mongoose';
 import { Route } from '../../models/Route';
 import { PersonalDelivery } from '../../models/PersonalDelivery';
 import { Delivery } from '../../models/Delivery';
+import { Driver } from '../../models/Driver';
 
 export interface BuildRouteOptions {
-  personalDeliveryIds?: string[]; // IDs específicos de entregas pessoais
-  deliveryIds?: string[]; // IDs específicos de Delivery (pedidos normais)
-  includePersonal?: boolean; // Incluir personalDeliveries automaticamente
-  includeDeliveries?: boolean; // Incluir Deliveries automaticamente
-  maxStops?: number; // Limite total de paragens na rota (default: 10)
+  personalDeliveryIds?: string[];
+  deliveryIds?: string[];
+  includePersonal?: boolean;
+  includeDeliveries?: boolean;
+  maxStops?: number;
 }
 
 type StopKind = 'personal' | 'delivery';
@@ -21,14 +22,7 @@ interface RouteStopCandidate {
 }
 
 export class RouteService {
-  /**
-   * Cria uma rota planejada para um driver, agrupando entregas pessoais
-   * e entregas normais (Delivery) e ordenando por proximidade.
-   */
-  static async buildRouteForDriver(
-    driverId: string,
-    options: BuildRouteOptions = {}
-  ) {
+  static async buildRouteForDriver(driverId: string, options: BuildRouteOptions = {}) {
     const {
       personalDeliveryIds,
       deliveryIds,
@@ -37,58 +31,83 @@ export class RouteService {
       maxStops = 10
     } = options;
 
+    if (!Types.ObjectId.isValid(driverId)) {
+      throw new Error('Driver inválido');
+    }
+
+    const driver = await Driver.findById(driverId).exec();
+    if (!driver || !driver.isVerified) {
+      throw new Error('Driver não encontrado ou não verificado');
+    }
+
     const driverObjectId = new Types.ObjectId(driverId);
+    const existingPlannedRoute = await Route.findOne({
+      driver: driverObjectId,
+      status: { $in: ['planned', 'in_progress'] }
+    }).exec();
+
+    if (existingPlannedRoute) {
+      throw new Error('O motorista já possui uma rota ativa');
+    }
 
     const stops: RouteStopCandidate[] = [];
 
-    // ===== Candidatos: PersonalDelivery =====
     if (includePersonal) {
       const personalQuery: any = {
-        status: 'pending',
-        driver: { $exists: false }
+        status: { $in: ['pending', 'confirmed', 'picked_up', 'in_transit'] },
+        driver: driver.userId,
+        $or: [{ route: { $exists: false } }, { route: null }]
       };
 
-      if (personalDeliveryIds && personalDeliveryIds.length > 0) {
-        personalQuery._id = { $in: personalDeliveryIds.map(id => new Types.ObjectId(id)) };
+      if (personalDeliveryIds?.length) {
+        personalQuery._id = { $in: personalDeliveryIds.map((id) => new Types.ObjectId(id)) };
+      } else {
+        delete personalQuery.driver;
+        personalQuery.$or = [
+          { driver: { $exists: false }, route: { $exists: false } },
+          { driver: { $exists: false }, route: null },
+          { driver: driver.userId, route: { $exists: false } },
+          { driver: driver.userId, route: null }
+        ];
       }
 
       const personalDeliveries = await PersonalDelivery.find(personalQuery)
         .limit(maxStops)
         .exec();
 
-      personalDeliveries.forEach(pd => {
-        const coords = pd.pickupAddress?.coordinates || { lat: 0, lng: 0 };
+      personalDeliveries.forEach((personalDelivery) => {
+        const coords = personalDelivery.pickupAddress?.coordinates || { lat: 0, lng: 0 };
         stops.push({
           kind: 'personal',
-          id: pd._id as Types.ObjectId,
+          id: personalDelivery._id as Types.ObjectId,
           lat: coords.lat || 0,
           lng: coords.lng || 0
         });
       });
     }
 
-    // ===== Candidatos: Delivery (ligadas a Order) =====
     if (includeDeliveries) {
-      const deliveryQuery: any = {};
+      const deliveryQuery: any = {
+        status: { $in: ['picked_up', 'in_transit'] },
+        driver: driver.userId,
+        $or: [{ route: { $exists: false } }, { route: null }]
+      };
 
-      if (deliveryIds && deliveryIds.length > 0) {
-        deliveryQuery._id = { $in: deliveryIds.map(id => new Types.ObjectId(id)) };
+      if (deliveryIds?.length) {
+        deliveryQuery._id = { $in: deliveryIds.map((id) => new Types.ObjectId(id)) };
       }
-
-      // Exemplo simples: considerar entregas ainda não concluídas
-      deliveryQuery.status = { $in: ['picked_up', 'in_transit'] };
 
       const deliveries = await Delivery.find(deliveryQuery)
         .limit(maxStops)
         .populate('order')
         .exec();
 
-      deliveries.forEach(d => {
-        const order: any = (d as any).order;
+      deliveries.forEach((delivery) => {
+        const order: any = (delivery as any).order;
         const coords = order?.deliveryAddress?.coordinates || { lat: 0, lng: 0 };
         stops.push({
           kind: 'delivery',
-          id: d._id as Types.ObjectId,
+          id: delivery._id as Types.ObjectId,
           lat: coords.lat || 0,
           lng: coords.lng || 0
         });
@@ -99,33 +118,57 @@ export class RouteService {
       throw new Error('Nenhuma entrega disponível para montar rota');
     }
 
-    // Limitar número total de stops
     const limitedStops = stops.slice(0, maxStops);
-
-    // Ordenar paragens por proximidade
     const orderedStops = this.orderStopsByNearestNeighbor(limitedStops);
 
     const personalDeliveryIdsOrdered = orderedStops
-      .filter(s => s.kind === 'personal')
-      .map(s => s.id);
+      .filter((stop) => stop.kind === 'personal')
+      .map((stop) => stop.id);
 
     const deliveryIdsOrdered = orderedStops
-      .filter(s => s.kind === 'delivery')
-      .map(s => s.id);
+      .filter((stop) => stop.kind === 'delivery')
+      .map((stop) => stop.id);
 
     const route = await Route.create({
       driver: driverObjectId,
       personalDeliveries: personalDeliveryIdsOrdered,
       deliveries: deliveryIdsOrdered,
+      geometry: {
+        type: 'LineString',
+        coordinates: orderedStops.map((stop) => [stop.lng, stop.lat]),
+        metadata: {
+          provider: 'nearest-neighbor'
+        }
+      },
       status: 'planned'
     });
+
+    if (personalDeliveryIdsOrdered.length > 0) {
+      await PersonalDelivery.updateMany(
+        { _id: { $in: personalDeliveryIdsOrdered } },
+        {
+          $set: {
+            route: route._id,
+            driver: driver.userId
+          }
+        }
+      ).exec();
+    }
+
+    if (deliveryIdsOrdered.length > 0) {
+      await Delivery.updateMany(
+        { _id: { $in: deliveryIdsOrdered } },
+        {
+          $set: {
+            route: route._id
+          }
+        }
+      ).exec();
+    }
 
     return route;
   }
 
-  /**
-   * Ordena uma lista de paragens usando heurística de vizinho mais próximo.
-   */
   private static orderStopsByNearestNeighbor(stops: RouteStopCandidate[]) {
     if (stops.length <= 1) return stops;
 
@@ -140,12 +183,7 @@ export class RouteService {
       let nearestDistance = Number.MAX_VALUE;
 
       remaining.forEach((stop, index) => {
-        const distance = this.calculateDistance(
-          current.lat,
-          current.lng,
-          stop.lat,
-          stop.lng
-        );
+        const distance = this.calculateDistance(current.lat, current.lng, stop.lat, stop.lng);
 
         if (distance < nearestDistance) {
           nearestDistance = distance;
@@ -160,24 +198,19 @@ export class RouteService {
     return ordered;
   }
 
-  /**
-   * Cálculo de distância Haversine (reuso da lógica de personal-delivery)
-   */
   private static calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371; // Raio da Terra em km
+    const R = 6371;
     const dLat = RouteService.deg2rad(lat2 - lat1);
     const dLon = RouteService.deg2rad(lon2 - lon1);
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(RouteService.deg2rad(lat1)) * Math.cos(RouteService.deg2rad(lat2)) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(RouteService.deg2rad(lat1)) * Math.cos(RouteService.deg2rad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
 
   private static deg2rad(deg: number): number {
-    return deg * (Math.PI/180);
+    return deg * (Math.PI / 180);
   }
 }
-
-

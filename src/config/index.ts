@@ -16,13 +16,6 @@ export const config = {
     name: process.env.DB_NAME || 'zero-delivery',
   },
   
-  // Configurações de segurança
-  security: {
-    jwtSecret: process.env.JWT_SECRET || 'your-secret-key',
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '10'),
-  },
-  
   // Configurações de logging
   logging: {
     level: process.env.LOG_LEVEL || 'info',
@@ -34,4 +27,15 @@ export const config = {
     origin: process.env.CORS_ORIGIN || '*',
     credentials: process.env.CORS_CREDENTIALS === 'true',
   },
-}; 
+
+  mapbox: {
+    accessToken: process.env.MAPBOX_ACCESS_TOKEN || '',
+    profile: process.env.MAPBOX_DIRECTIONS_PROFILE || 'driving-traffic',
+  },
+
+  realtime: {
+    publicBaseUrl: process.env.PUBLIC_API_URL || process.env.PUBLIC_APP_URL || '',
+    syncAdapter: process.env.TRACKING_SYNC_ADAPTER || 'memory',
+    redisUrl: process.env.REDIS_URL || '',
+  },
+};

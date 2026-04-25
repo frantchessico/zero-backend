@@ -7,19 +7,43 @@ import { INotification } from '../../models/interfaces';
 
 
 export class NotificationService {
+  private calculateDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const earthRadius = 6371;
+    const deltaLatitude = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLongitude = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(deltaLatitude / 2) * Math.sin(deltaLatitude / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(deltaLongitude / 2) *
+      Math.sin(deltaLongitude / 2);
+
+    return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
   /**
    * Criar uma nova notificação
    */
   async createNotification(
     userId: string,
-    type: 'order_status' | 'delivery_update' | 'promotion',
-    message: string
+    type: 'order_status' | 'delivery_update' | 'promotion' | 'payment_update' | 'vendor_status' | 'system',
+    message: string,
+    options?: {
+      orderId?: string;
+      deliveryId?: string;
+      personalDeliveryId?: string;
+      metadata?: Record<string, any>;
+    }
   ): Promise<INotification> {
     try {
       const notification = new Notification({
         user: new Types.ObjectId(userId),
         type,
-        message
+        message,
+        ...(options?.orderId && { order: new Types.ObjectId(options.orderId) }),
+        ...(options?.deliveryId && { delivery: new Types.ObjectId(options.deliveryId) }),
+        ...(options?.personalDeliveryId && { personalDelivery: new Types.ObjectId(options.personalDeliveryId) }),
+        ...(options?.metadata && { metadata: options.metadata })
       });
       const saved = await notification.save();
       
@@ -27,8 +51,12 @@ export class NotificationService {
       return {
         _id: saved._id.toString(),
         user: saved.user.toString(),
-        type: saved.type as 'order_status' | 'delivery_update' | 'promotion',
+        type: saved.type as INotification['type'],
         message: saved.message,
+        order: saved.order?.toString(),
+        delivery: saved.delivery?.toString(),
+        personalDelivery: saved.personalDelivery?.toString(),
+        metadata: saved.metadata,
         read: saved.read,
         sentAt: saved.sentAt
       };
@@ -51,12 +79,20 @@ export class NotificationService {
 
 
 
-      const message = `Novo pedido #${orderId.slice(-6)} recebido de ${order.customer}. Total: ${order.total.toFixed(2)} MT`;
+      const customer = order.customer as any;
+      const vendorOwnerId = typeof vendorId === 'string' ? vendorId : (vendorId as any)?._id?.toString?.();
+      const message = `Novo pedido #${orderId.slice(-6)} recebido de ${customer?.userId || 'Cliente'}. Total: ${order.total.toFixed(2)} MT`;
 
       await this.createNotification(
-        (vendorId as any)._id.toString(),
+        vendorOwnerId || String((order.vendor as any)?.owner || ''),
         'order_status',
-        message
+        message,
+        {
+          orderId,
+          metadata: {
+            status: order.status
+          }
+        }
       );
 
       // Aqui você pode integrar com push notifications, SMS, email, etc.
@@ -92,9 +128,15 @@ export class NotificationService {
       // Enviar notificação para todos os drivers disponíveis
       const notifications = availableDrivers.map(driver => 
         this.createNotification(
-          (driver._id as Types.ObjectId).toString(),
+          driver.userId.toString(),
           'delivery_update',
-          message
+          message,
+          {
+            orderId,
+            metadata: {
+              status: order.status
+            }
+          }
         )
       );
 
@@ -124,7 +166,13 @@ export class NotificationService {
       await this.createNotification(
         driverId,
         'delivery_update',
-        message
+        message,
+        {
+          orderId,
+          metadata: {
+            status: order.status
+          }
+        }
       );
 
       console.log(`Driver ${driverId} notificado sobre atribuição do pedido #${orderId.slice(-6)}`);
@@ -157,7 +205,13 @@ export class NotificationService {
       await this.createNotification(
         customerId,
         'order_status',
-        message
+        message,
+        {
+          orderId,
+          metadata: {
+            status
+          }
+        }
       );
 
       console.log(`Cliente ${customerId} notificado sobre mudança de status: ${status}`);
@@ -200,12 +254,16 @@ export class NotificationService {
     // Converter documentos do Mongoose para nossa interface
     const notifications: INotification[] = notificationDocs.map(doc => ({
       _id: doc._id.toString(),
-      user: doc.user.toString(),
-      type: doc.type as 'order_status' | 'delivery_update' | 'promotion',
-      message: doc.message,
-      read: doc.read,
-      sentAt: doc.sentAt
-    }));
+        user: doc.user.toString(),
+        type: doc.type as INotification['type'],
+        message: doc.message,
+        order: doc.order?.toString(),
+        delivery: doc.delivery?.toString(),
+        personalDelivery: doc.personalDelivery?.toString(),
+        metadata: doc.metadata,
+        read: doc.read,
+        sentAt: doc.sentAt
+      }));
 
     return {
       notifications,
@@ -232,8 +290,12 @@ export class NotificationService {
     return {
       _id: doc._id.toString(),
       user: doc.user.toString(),
-      type: doc.type as 'order_status' | 'delivery_update' | 'promotion',
+      type: doc.type as INotification['type'],
       message: doc.message,
+      order: doc.order?.toString(),
+      delivery: doc.delivery?.toString(),
+      personalDelivery: doc.personalDelivery?.toString(),
+      metadata: doc.metadata,
       read: doc.read,
       sentAt: doc.sentAt
     };
@@ -256,6 +318,25 @@ export class NotificationService {
   async deleteNotification(notificationId: string): Promise<boolean> {
     const result = await Notification.findByIdAndDelete(notificationId);
     return !!result;
+  }
+
+  async getOrderNotifications(orderId: string): Promise<INotification[]> {
+    const docs = await Notification.find({ order: new Types.ObjectId(orderId) })
+      .sort({ sentAt: -1 })
+      .exec();
+
+    return docs.map((doc) => ({
+      _id: doc._id.toString(),
+      user: doc.user.toString(),
+      type: doc.type as INotification['type'],
+      message: doc.message,
+      order: doc.order?.toString(),
+      delivery: doc.delivery?.toString(),
+      personalDelivery: doc.personalDelivery?.toString(),
+      metadata: doc.metadata,
+      read: doc.read,
+      sentAt: doc.sentAt
+    }));
   }
 
   /**
@@ -318,23 +399,27 @@ export class NotificationService {
     longitude: number,
     radiusInKm: number = 10
   ): Promise<any> {
-    // Converter km para metros para o MongoDB
-    const radiusInMeters = radiusInKm * 1000;
-
-    return await Driver.find({
+    const drivers = await Driver.find({
       isAvailable: true,
-      isActive: true,
-      isVerified: true,
-      currentLocation: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude]
-          },
-          $maxDistance: radiusInMeters
+      isVerified: true
+    }).limit(50).exec();
+
+    return drivers
+      .filter((driver) => {
+        if (!driver.currentLocation) {
+          return false;
         }
-      }
-    }).limit(10).exec();
+
+        const distance = this.calculateDistanceInKm(
+          latitude,
+          longitude,
+          driver.currentLocation.latitude,
+          driver.currentLocation.longitude
+        );
+
+        return distance <= radiusInKm;
+      })
+      .slice(0, 10);
   }
 
   /**
@@ -364,9 +449,15 @@ export class NotificationService {
 
       const notifications = nearbyDrivers.map((driver: any) => 
         this.createNotification(
-          (driver._id as Types.ObjectId).toString(),
+          driver.userId.toString(),
           'delivery_update',
-          message
+          message,
+          {
+            orderId,
+            metadata: {
+              radiusInKm
+            }
+          }
         )
       );
 

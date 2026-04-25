@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_guard_1 = require("../guards/auth.guard");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const chat_controller_1 = require("../core/chat/chat.controller");
+const router = (0, express_1.Router)();
+router.post('/context', auth_guard_1.AuthGuard, (0, auth_middleware_1.logAction)('CHAT_GET_OR_CREATE_CONTEXT'), chat_controller_1.chatController.createOrGetContextConversation);
+router.get('/', auth_guard_1.AuthGuard, (0, auth_middleware_1.logAction)('CHAT_LIST_CONVERSATIONS'), chat_controller_1.chatController.listConversations);
+router.get('/context/:orderId/availability', auth_guard_1.AuthGuard, (0, auth_middleware_1.logAction)('CHAT_CONTEXT_AVAILABILITY'), chat_controller_1.chatController.getContextAvailability);
+router.get('/:conversationId', auth_guard_1.AuthGuard, (0, auth_middleware_1.logAction)('CHAT_GET_CONVERSATION'), chat_controller_1.chatController.getConversation);
+router.get('/:conversationId/messages', auth_guard_1.AuthGuard, (0, auth_middleware_1.logAction)('CHAT_LIST_MESSAGES'), chat_controller_1.chatController.listMessages);
+router.post('/:conversationId/messages', auth_guard_1.AuthGuard, (0, auth_middleware_1.logAction)('CHAT_SEND_MESSAGE'), chat_controller_1.chatController.sendMessage);
+router.post('/:conversationId/read', auth_guard_1.AuthGuard, (0, auth_middleware_1.logAction)('CHAT_MARK_READ'), chat_controller_1.chatController.markRead);
+exports.default = router;

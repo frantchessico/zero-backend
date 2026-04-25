@@ -29,6 +29,9 @@ describe('Auth Middleware Tests', () => {
     it('deve chamar next() quando autenticação é válida', () => {
       // Arrange
       const mockClerkMiddleware = clerkMiddleware as jest.MockedFunction<typeof clerkMiddleware>;
+      mockClerkMiddleware.mockImplementation((_req: Request, _res: Response, next: NextFunction) => {
+        next();
+      });
       
       // Act
       mockClerkMiddleware(mockRequest as Request, mockResponse as Response, mockNext);

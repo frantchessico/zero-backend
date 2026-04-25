@@ -5,14 +5,21 @@ import { User } from '../../models/User';
 import { logger } from '../../utils/logger';
 import { PaymentService } from '../payment/payment.service';
 import { couponService } from '../coupon/coupon.service';
+import { NotificationService } from '../notification/notification.service';
+import deliveryService from '../delivery/delivery.service';
+import { chatService } from '../chat/chat.service';
+import { Delivery } from '../../models/Delivery';
+import { Vendor } from '../../models/Vendor';
 
 export class OrderController {
   private orderService: OrderService;
   private paymentService: PaymentService;
+  private notificationService: NotificationService;
 
   constructor() {
     this.orderService = new OrderService();
     this.paymentService = new PaymentService();
+    this.notificationService = new NotificationService();
   }
 
   /**
@@ -54,6 +61,7 @@ export class OrderController {
       }
 
       const order = await this.orderService.createOrder(orderData);
+      await chatService.syncOrderConversations(order._id?.toString() || '');
 
       // Buscar order com relacionamentos para resposta
       const orderWithRelations = await QueryService.getOrderWithRelations(order._id?.toString() || '');
@@ -485,12 +493,12 @@ export class OrderController {
   processPayment = async (req: Request, res: Response): Promise<void> => {
     try {
       const { orderId } = req.params;
-      const { phoneNumber, amount, paymentType, appPaymentOrigin, couponCode } = req.body;
+      const { phoneNumber, amount, paymentType, appPaymentOrigin, couponCode, idempotencyKey } = req.body;
 
-      if (!phoneNumber || !amount) {
+      if (!phoneNumber) {
         res.status(400).json({
           success: false,
-          message: 'phoneNumber e amount são obrigatórios para pagamento M-Pesa'
+          message: 'phoneNumber é obrigatório para pagamento M-Pesa'
         });
         return;
       }
@@ -505,17 +513,21 @@ export class OrderController {
         return;
       }
 
-      let finalAmount = amount;
       let couponId: string | undefined;
       let discountAmount: number | undefined;
 
       // Aplicar cupom se informado
       if (couponCode) {
+        const vendorId = typeof order.vendor === 'object' && order.vendor
+          ? ((order.vendor as any)._id?.toString?.() || (order.vendor as any).toString?.())
+          : String(order.vendor);
+
         const validation = await couponService.validateCoupon({
           code: couponCode,
-          vendorId: (order.vendor as any)?.toString?.() || undefined,
+          vendorId,
           paymentMethod: 'mpesa',
-          orderTotal: order.total
+          orderTotal: order.subtotal,
+          deliveryFee: order.deliveryFee
         });
 
         if (!validation.valid) {
@@ -528,27 +540,34 @@ export class OrderController {
 
         couponId = validation.couponId;
         discountAmount = validation.discountAmount;
-        finalAmount = order.total - (discountAmount || 0);
+        const repricedOrder = await this.orderService.applyCouponToOrder({
+          orderId,
+          couponId: validation.couponId || '',
+          couponCode,
+          discountAmount: validation.discountAmount || 0
+        });
 
-        if (finalAmount < 0) finalAmount = 0;
+        if (!repricedOrder) {
+          res.status(404).json({
+            success: false,
+            message: 'Pedido não encontrado'
+          });
+          return;
+        }
       }
 
       const { mpesaResponse, paymentLog } = await this.paymentService.createMpesaPayment({
         orderId,
         phoneNumber,
-        amount: finalAmount,
+        amount,
         paymentType,
         appPaymentOrigin,
         couponId,
-        discountAmount
+        discountAmount,
+        idempotencyKey
       });
 
-      // Atualizar status de pagamento da order com base no resultado
-      const finalStatus =
-        (mpesaResponse as any)?.status === 'INSUFFICIENT_BALANCE' ||
-        (mpesaResponse as any)?.status === 'FAILED'
-          ? 'failed'
-          : 'paid';
+      const finalStatus = (paymentLog?.status || 'pending') as 'pending' | 'paid' | 'failed' | 'refunded';
 
       const updatedOrder = await this.orderService.updatePaymentStatus(orderId, finalStatus);
 
@@ -561,8 +580,11 @@ export class OrderController {
       }
 
       // Registrar uso do cupom se aplicável
-      if (couponId) {
-        await couponService.registerUse(couponId);
+      if (couponId && finalStatus === 'paid') {
+        const registered = await couponService.registerUse(couponId);
+        if (!registered) {
+          logger.warn(`Coupon usage could not be registered for coupon ${couponId}`);
+        }
       }
 
       res.status(200).json({
@@ -624,25 +646,19 @@ export class OrderController {
   createDelivery = async (req: Request, res: Response): Promise<void> => {
     try {
       const { orderId } = req.params;
-      const deliveryData = req.body;
+      const deliveryData = req.body || {};
 
-      // Verificar se o pedido existe
-      const order = await this.orderService.getOrderById(orderId);
-      if (!order) {
-        res.status(404).json({
-          success: false,
-          message: 'Pedido não encontrado'
-        });
-        return;
-      }
-
-      // Atualizar status do pedido para 'out_for_delivery'
-      const updatedOrder = await this.orderService.updateOrderStatus(orderId, 'out_for_delivery');
+      const createdDelivery = await deliveryService.createDelivery({
+        orderId,
+        driverId: deliveryData.driverId,
+        estimatedTime: deliveryData.estimatedTime ? new Date(deliveryData.estimatedTime) : undefined
+      });
+      await chatService.syncOrderConversations(orderId);
 
       res.status(201).json({
         success: true,
         message: 'Entrega criada com sucesso',
-        data: updatedOrder
+        data: createdDelivery
       });
     } catch (error: any) {
       logger.error('Error creating delivery:', error);
@@ -660,7 +676,16 @@ export class OrderController {
     try {
       const { orderId } = req.params;
 
-      const delivery = await QueryService.getDeliveryWithRelations(orderId);
+      const deliveryRecord = await Delivery.findOne({ order: orderId }).select('_id').exec();
+      if (!deliveryRecord) {
+        res.status(404).json({
+          success: false,
+          message: 'Entrega não encontrada'
+        });
+        return;
+      }
+
+      const delivery = await QueryService.getDeliveryWithRelations(deliveryRecord._id.toString());
 
       if (!delivery) {
         res.status(404).json({
@@ -689,7 +714,7 @@ export class OrderController {
   sendNotification = async (req: Request, res: Response): Promise<void> => {
     try {
       const { orderId } = req.params;
-      const { message, type } = req.body;
+      const { message, type, recipient = 'customer' } = req.body;
 
       if (!message || !type) {
         res.status(400).json({
@@ -709,15 +734,37 @@ export class OrderController {
         return;
       }
 
+      const notifications = [];
+
+      if (recipient === 'customer' || recipient === 'both') {
+        notifications.push(
+          await this.notificationService.createNotification(
+            String((order.customer as any)?._id || order.customer),
+            type,
+            message,
+            { orderId }
+          )
+        );
+      }
+
+      if (recipient === 'vendor' || recipient === 'both') {
+        const vendor = await Vendor.findById((order.vendor as any)?._id || order.vendor).exec();
+        if (vendor?.owner) {
+          notifications.push(
+            await this.notificationService.createNotification(
+              vendor.owner.toString(),
+              type,
+              message,
+              { orderId }
+            )
+          );
+        }
+      }
+
       res.status(200).json({
         success: true,
         message: 'Notificação enviada com sucesso',
-        data: {
-          orderId,
-          message,
-          type,
-          sentAt: new Date()
-        }
+        data: notifications
       });
     } catch (error: any) {
       logger.error('Error sending notification:', error);
@@ -745,18 +792,11 @@ export class OrderController {
         return;
       }
 
-      // Retornar notificações mock (em produção, buscar do banco)
+      const notifications = await this.notificationService.getOrderNotifications(orderId);
+
       res.status(200).json({
         success: true,
-        data: [
-          {
-            id: '1',
-            orderId,
-            type: 'order_status',
-            message: 'Pedido confirmado',
-            sentAt: new Date()
-          }
-        ]
+        data: notifications
       });
     } catch (error: any) {
       logger.error('Error fetching notifications:', error);

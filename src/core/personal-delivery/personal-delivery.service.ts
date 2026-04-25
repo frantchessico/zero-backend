@@ -59,6 +59,33 @@ class PersonalDeliveryServiceClass {
     this.notificationService = new NotificationService();
   }
 
+  private getCategoryMultiplier(category: CreatePersonalDeliveryDTO['category']): number {
+    switch (category) {
+      case 'documents':
+        return 0.85;
+      case 'electronics':
+        return 1.2;
+      case 'furniture':
+        return 1.45;
+      case 'appliances':
+        return 1.35;
+      default:
+        return 1;
+    }
+  }
+
+  private getVolumetricWeight(items: IPersonalDeliveryItem[]): number {
+    return items.reduce((sum, item) => {
+      if (!item.dimensions) {
+        return sum;
+      }
+
+      const volumeCm = item.dimensions.length * item.dimensions.width * item.dimensions.height;
+      const volumetricWeight = volumeCm / 5000;
+      return sum + volumetricWeight * item.quantity;
+    }, 0);
+  }
+
   /**
    * Criar nova entrega pessoal
    */
@@ -74,7 +101,9 @@ class PersonalDeliveryServiceClass {
       const deliveryFee = await this.calculateDeliveryFee(
         deliveryData.pickupAddress,
         deliveryData.deliveryAddress,
-        deliveryData.items
+        deliveryData.items,
+        deliveryData.category,
+        deliveryData.signatureRequired !== false
       );
 
       // Calcular taxa de seguro se necessário
@@ -122,9 +151,10 @@ class PersonalDeliveryServiceClass {
   private async calculateDeliveryFee(
     pickupAddress: any,
     deliveryAddress: any,
-    items: IPersonalDeliveryItem[]
+    items: IPersonalDeliveryItem[],
+    category: CreatePersonalDeliveryDTO['category'],
+    signatureRequired: boolean
   ): Promise<number> {
-    // Calcular distância (simulação - em produção usar API de geocoding)
     const distance = this.calculateDistance(
       pickupAddress.coordinates?.lat || 0,
       pickupAddress.coordinates?.lng || 0,
@@ -132,25 +162,38 @@ class PersonalDeliveryServiceClass {
       deliveryAddress.coordinates?.lng || 0
     );
 
-    // Calcular peso total
-    const totalWeight = items.reduce((sum, item) => {
+    const actualWeight = items.reduce((sum, item) => {
       return sum + (item.weight || 0) * item.quantity;
     }, 0);
 
-    // Taxa base
-    let fee = 50; // Taxa base de 50 MT
-
-    // Adicionar por distância (10 MT por km)
-    fee += distance * 10;
-
-    // Adicionar por peso (5 MT por kg)
-    fee += totalWeight * 5;
-
-    // Adicionar taxa para itens frágeis
+    const volumetricWeight = this.getVolumetricWeight(items);
+    const chargeableWeight = Math.max(actualWeight, volumetricWeight);
     const fragileItems = items.filter(item => item.isFragile);
-    fee += fragileItems.length * 20; // 20 MT por item frágil
+    const bulkyItems = items.filter((item) => {
+      if (!item.dimensions) {
+        return false;
+      }
 
-    return Math.round(fee);
+      return item.dimensions.length > 100 || item.dimensions.width > 80 || item.dimensions.height > 80;
+    });
+
+    const zoneMultiplier = distance <= 3 ? 1 : distance <= 8 ? 1.12 : distance <= 15 ? 1.28 : 1.45;
+    const categoryMultiplier = this.getCategoryMultiplier(category);
+
+    let fee = 65;
+    fee += distance * 12;
+    fee += chargeableWeight * 6;
+    fee += fragileItems.length * 25;
+    fee += bulkyItems.length * 30;
+
+    if (signatureRequired) {
+      fee += 15;
+    }
+
+    fee *= zoneMultiplier;
+    fee *= categoryMultiplier;
+
+    return Math.max(75, Math.round(fee));
   }
 
   /**
@@ -340,7 +383,14 @@ class PersonalDeliveryServiceClass {
       await this.notificationService.createNotification(
         delivery.customer.toString(),
         'delivery_update',
-        message
+        message,
+        {
+          personalDeliveryId: (delivery as any)._id?.toString(),
+          metadata: {
+            status: delivery.status,
+            total: delivery.total
+          }
+        }
       );
 
       console.log(`✅ Notificação de criação enviada para cliente - Entrega ${(delivery as any)._id}`);
@@ -368,7 +418,13 @@ class PersonalDeliveryServiceClass {
       await this.notificationService.createNotification(
         delivery.customer.toString(),
         'delivery_update',
-        message
+        message,
+        {
+          personalDeliveryId: (delivery as any)._id?.toString(),
+          metadata: {
+            status: newStatus
+          }
+        }
       );
 
       console.log(`✅ Notificação de status enviada: ${newStatus} - Entrega ${(delivery as any)._id}`);
@@ -387,7 +443,14 @@ class PersonalDeliveryServiceClass {
       await this.notificationService.createNotification(
         delivery.customer.toString(),
         'delivery_update',
-        message
+        message,
+        {
+          personalDeliveryId: (delivery as any)._id?.toString(),
+          metadata: {
+            status: delivery.status,
+            driverId: driver._id?.toString?.() || driver.userId?.toString?.()
+          }
+        }
       );
 
       console.log(`✅ Notificação de driver atribuído enviada - Entrega ${(delivery as any)._id}`);
@@ -408,7 +471,14 @@ class PersonalDeliveryServiceClass {
       await this.notificationService.createNotification(
         delivery.customer.toString(),
         'delivery_update',
-        message
+        message,
+        {
+          personalDeliveryId: (delivery as any)._id?.toString(),
+          metadata: {
+            status: 'cancelled',
+            reason
+          }
+        }
       );
 
       console.log(`✅ Notificação de cancelamento enviada - Entrega ${(delivery as any)._id}`);

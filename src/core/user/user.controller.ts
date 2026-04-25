@@ -4,6 +4,23 @@ import { User } from '../../models/User';
 import { Types } from 'mongoose';
 import { logger } from '../../utils/logger';
 
+const normalizeAddressPayload = (address: Record<string, any>) => {
+  const rawStreet = typeof address.street === 'string' ? address.street.trim() : '';
+  const streetParts = rawStreet.split(/\s+/).filter(Boolean);
+  const streetType = address.streetType || streetParts[0] || 'Rua';
+  const streetName =
+    address.streetName ||
+    (streetParts.length > 1 ? streetParts.slice(1).join(' ') : rawStreet || 'Sem nome');
+
+  return {
+    ...address,
+    streetType,
+    streetName,
+    number: address.number || 'S/N',
+    province: address.province || address.city || 'Não informado',
+  };
+};
+
 export class UserController {
   private userService: UserService;
 
@@ -356,7 +373,7 @@ export class UserController {
   addDeliveryAddress = async (req: Request, res: Response): Promise<void> => {
     try {
       const { userId } = req.params;
-      const address = req.body;
+      const address = normalizeAddressPayload(req.body);
 
       const user = await this.userService.addDeliveryAddress(userId, address);
 
@@ -417,7 +434,7 @@ export class UserController {
   updateDeliveryAddress = async (req: Request, res: Response): Promise<void> => {
     try {
       const { userId, addressId } = req.params;
-      const addressData = req.body;
+      const addressData = normalizeAddressPayload(req.body);
 
       const user = await this.userService.updateDeliveryAddress(userId, addressId, addressData);
 
@@ -522,7 +539,7 @@ export class UserController {
       if (!points || points <= 0) {
         res.status(400).json({
           success: false,
-          message: 'Quantidade de pontos deve ser maior que zero'
+          message: 'Pontos devem ser um número positivo'
         });
         return;
       }
@@ -539,7 +556,7 @@ export class UserController {
 
       res.status(200).json({
         success: true,
-        message: 'Pontos adicionados com sucesso',
+        message: 'Pontos de fidelidade adicionados com sucesso',
         data: user
       });
     } catch (error: any) {

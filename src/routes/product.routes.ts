@@ -8,11 +8,11 @@ const router = Router();
 // ===== ROTAS PÚBLICAS =====
 // Rotas que não precisam de autenticação
 router.get('/', ProductController.getProducts);
-router.get('/:id', ProductController.getProductById);
 router.get('/vendor/:vendorId', ProductController.getProductsByVendor);
 router.get('/category/:categoryId', ProductController.getProductsByCategory);
 router.get('/popular', ProductController.getPopularProducts);
 router.get('/search', ProductController.searchProducts);
+router.get('/:id', ProductController.getProductById);
 
 // ===== ROTAS PROTEGIDAS =====
 // Rotas que precisam de autenticação

@@ -3,11 +3,44 @@ import { IUser } from '../../models/interfaces';
 import { User } from '../../models';
 
 export class UserService {
+  private buildUserLookup(identifier: string, isActive?: boolean) {
+    const filters: Record<string, unknown> = {
+      $or: [{ userId: identifier }, { clerkId: identifier }],
+    };
+
+    if (typeof isActive === 'boolean') {
+      filters.isActive = isActive;
+    }
+
+    return filters;
+  }
+
   /**
    * Criar um novo usuário
    */
   async createUser(userData: Partial<IUser>): Promise<IUser> {
     try {
+      const duplicateConditions = [];
+
+      if (userData.userId) {
+        duplicateConditions.push({ userId: userData.userId });
+      }
+
+      if (userData.email) {
+        duplicateConditions.push({ email: userData.email });
+      }
+
+      if (userData.clerkId) {
+        duplicateConditions.push({ clerkId: userData.clerkId });
+      }
+
+      if (duplicateConditions.length > 0) {
+        const existingUser = await User.findOne({ $or: duplicateConditions }).lean().exec();
+        if (existingUser) {
+          throw new Error('Usuário já existe com esse email ou userId');
+        }
+      }
+
       const user = new User(userData);
       return await user.save();
     } catch (error: any) {
@@ -21,8 +54,8 @@ export class UserService {
   /**
    * Buscar usuário por ID
    */
-  async getUserById(clerkId: string): Promise<IUser | null> {
-    return await User.findOne({ clerkId, isActive: true })
+  async getUserById(identifier: string): Promise<IUser | null> {
+    return await User.findOne(this.buildUserLookup(identifier, true))
       .populate('orderHistory')
       .exec();
   }
@@ -48,9 +81,9 @@ export class UserService {
   /**
    * Atualizar dados do usuário
    */
-  async updateUser(clerkId: string, updateData: Partial<IUser>): Promise<IUser | null> {
+  async updateUser(identifier: string, updateData: Partial<IUser>): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $set: updateData },
       { new: true, runValidators: true }
     ).populate('orderHistory');
@@ -59,9 +92,9 @@ export class UserService {
   /**
    * Desativar usuário (soft delete)
    */
-  async deactivateUser(clerkId: string): Promise<boolean> {
+  async deactivateUser(identifier: string): Promise<boolean> {
     const result = await User.findOneAndUpdate(
-      {userId: clerkId },
+      this.buildUserLookup(identifier),
       { $set: { isActive: false } }
     );
     return !!result;
@@ -70,9 +103,9 @@ export class UserService {
   /**
    * Reativar usuário
    */
-  async reactivateUser(clerkId: string): Promise<boolean> {
+  async reactivateUser(identifier: string): Promise<boolean> {
     const result = await User.findOneAndUpdate(
-      { clerkId },
+      this.buildUserLookup(identifier),
       { $set: { isActive: true } }
     );
     return !!result;
@@ -81,9 +114,9 @@ export class UserService {
   /**
    * Adicionar endereço de entrega
    */
-  async addDeliveryAddress(clerkId: string, address: any): Promise<IUser | null> {
+  async addDeliveryAddress(identifier: string, address: any): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $push: { deliveryAddresses: address } },
       { new: true }
     );
@@ -92,9 +125,9 @@ export class UserService {
   /**
    * Remover endereço de entrega
    */
-  async removeDeliveryAddress(clerkId: string, addressId: string): Promise<IUser | null> {
+  async removeDeliveryAddress(identifier: string, addressId: string): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $pull: { deliveryAddresses: { _id: addressId } } },
       { new: true }
     );
@@ -103,9 +136,9 @@ export class UserService {
   /**
    * Atualizar endereço de entrega
    */
-  async updateDeliveryAddress(clerkId: string, addressId: string, addressData: any): Promise<IUser | null> {
+  async updateDeliveryAddress(identifier: string, addressId: string, addressData: any): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true, 'deliveryAddresses._id': addressId },
+      { ...this.buildUserLookup(identifier, true), 'deliveryAddresses._id': addressId },
       { $set: { 'deliveryAddresses.$': { ...addressData, _id: addressId } } },
       { new: true }
     );
@@ -114,9 +147,9 @@ export class UserService {
   /**
    * Adicionar método de pagamento
    */
-  async addPaymentMethod(clerkId: string, paymentMethod: 'visa' | 'm-pesa' | 'cash' | 'paypal'): Promise<IUser | null> {
+  async addPaymentMethod(identifier: string, paymentMethod: 'visa' | 'm-pesa' | 'cash' | 'paypal'): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $addToSet: { paymentMethods: paymentMethod } },
       { new: true }
     );
@@ -125,9 +158,9 @@ export class UserService {
   /**
    * Remover método de pagamento
    */
-  async removePaymentMethod(clerkId: string, paymentMethod: string): Promise<IUser | null> {
+  async removePaymentMethod(identifier: string, paymentMethod: string): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $pull: { paymentMethods: paymentMethod } },
       { new: true }
     );
@@ -136,9 +169,9 @@ export class UserService {
   /**
    * Adicionar pontos de fidelidade
    */
-  async addLoyaltyPoints(clerkId: string, points: number): Promise<IUser | null> {
+  async addLoyaltyPoints(identifier: string, points: number): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $inc: { loyaltyPoints: points } },
       { new: true }
     );
@@ -147,19 +180,19 @@ export class UserService {
   /**
    * Usar pontos de fidelidade
    */
-  async useLoyaltyPoints(clerkId: string, points: number): Promise<IUser | null> {
-    const user = await User.findOne({ clerkId, isActive: true });
+  async useLoyaltyPoints(identifier: string, points: number): Promise<IUser | null> {
+    const user = await User.findOne(this.buildUserLookup(identifier, true));
     
     if (!user) {
       throw new Error('Usuário não encontrado');
     }
 
-    if (user.loyaltyPoints < points) {
+    if ((user.loyaltyPoints ?? 0) < points) {
       throw new Error('Pontos insuficientes');
     }
 
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $inc: { loyaltyPoints: -points } },
       { new: true }
     );
@@ -168,9 +201,9 @@ export class UserService {
   /**
    * Adicionar pedido ao histórico
    */
-  async addOrderToHistory(clerkId: string, orderId: Types.ObjectId): Promise<IUser | null> {
+  async addOrderToHistory(identifier: string, orderId: Types.ObjectId): Promise<IUser | null> {
     return await User.findOneAndUpdate(
-      { clerkId, isActive: true },
+      this.buildUserLookup(identifier, true),
       { $push: { orderHistory: orderId } },
       { new: true }
     ).populate('orderHistory');
@@ -179,8 +212,8 @@ export class UserService {
   /**
    * Buscar histórico de pedidos do usuário
    */
-  async getUserOrderHistory(clerkId: string): Promise<any[]> {
-    const user = await User.findOne({ clerkId, isActive: true })
+  async getUserOrderHistory(identifier: string): Promise<any[]> {
+    const user = await User.findOne(this.buildUserLookup(identifier, true))
       .populate('orderHistory')
       .exec();
     
@@ -228,8 +261,8 @@ export class UserService {
   /**
    * Verificar se usuário existe
    */
-  async userExists(clerkId: string): Promise<boolean> {
-    const user = await User.findOne({ clerkId });
+  async userExists(identifier: string): Promise<boolean> {
+    const user = await User.findOne(this.buildUserLookup(identifier));
     return !!user;
   }
 

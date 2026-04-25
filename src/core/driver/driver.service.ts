@@ -65,6 +65,25 @@ class DriverServices {
     this.notificationService = new NotificationService();
   }
 
+  private calculateDistanceInMeters(
+    latitude1: number,
+    longitude1: number,
+    latitude2: number,
+    longitude2: number
+  ): number {
+    const earthRadius = 6371000;
+    const deltaLatitude = ((latitude2 - latitude1) * Math.PI) / 180;
+    const deltaLongitude = ((longitude2 - longitude1) * Math.PI) / 180;
+    const a =
+      Math.sin(deltaLatitude / 2) * Math.sin(deltaLatitude / 2) +
+      Math.cos((latitude1 * Math.PI) / 180) *
+      Math.cos((latitude2 * Math.PI) / 180) *
+      Math.sin(deltaLongitude / 2) *
+      Math.sin(deltaLongitude / 2);
+
+    return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
   // Criar perfil de driver para um User existente
   async createDriver(userId: string, driverData: CreateDriverDTO): Promise<IDriver> {
     try {
@@ -144,7 +163,7 @@ class DriverServices {
   // Listar drivers com filtros
   async getDrivers(filters: DriverFilters = {}): Promise<IDriver[]> {
     try {
-      let query: any = {};
+      const query: any = {};
 
       if (filters.isAvailable !== undefined) {
         query.isAvailable = filters.isAvailable;
@@ -166,21 +185,28 @@ class DriverServices {
         query.rating = { $gte: filters.minRating };
       }
 
-      if (filters.nearLocation) {
-        query.currentLocation = {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [filters.nearLocation.longitude, filters.nearLocation.latitude]
-            },
-            $maxDistance: filters.nearLocation.maxDistance
-          }
-        };
-      }
-
-      return await Driver.find(query)
+      let drivers = await Driver.find(query)
         .populate('user', 'userId email phoneNumber role')
         .sort({ rating: -1 });
+
+      if (filters.nearLocation) {
+        drivers = drivers.filter((driver) => {
+          if (!driver.currentLocation) {
+            return false;
+          }
+
+          const distance = this.calculateDistanceInMeters(
+            filters.nearLocation!.latitude,
+            filters.nearLocation!.longitude,
+            driver.currentLocation.latitude,
+            driver.currentLocation.longitude
+          );
+
+          return distance <= filters.nearLocation!.maxDistance;
+        }) as any;
+      }
+
+      return drivers;
     } catch (error: any) {
       throw new Error(`Erro ao listar drivers: ${error.message}`);
     }
@@ -196,7 +222,11 @@ class DriverServices {
           ...(updateData.currentLocation && {
             currentLocation: {
               ...updateData.currentLocation,
-              lastUpdated: new Date()
+              lastUpdated: new Date(),
+              geoPoint: {
+                type: 'Point',
+                coordinates: [updateData.currentLocation.longitude, updateData.currentLocation.latitude]
+              }
             }
           })
         },
@@ -219,22 +249,34 @@ class DriverServices {
       const drivers = await Driver.find({
         isAvailable: true,
         isVerified: true,
-        deliveryAreas: deliveryArea,
-        currentLocation: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [pickupLocation.longitude, pickupLocation.latitude]
-            },
-            $maxDistance: maxDistance
-          }
-        }
+        ...(deliveryArea ? { deliveryAreas: deliveryArea } : {})
       })
       .populate('user', 'userId email phoneNumber role')
-      .sort({ rating: -1, averageDeliveryTime: 1 })
-      .limit(10);
+      .exec();
 
-      return drivers;
+      return drivers
+        .filter((driver) => {
+          if (!driver.currentLocation) {
+            return false;
+          }
+
+          const distance = this.calculateDistanceInMeters(
+            pickupLocation.latitude,
+            pickupLocation.longitude,
+            driver.currentLocation.latitude,
+            driver.currentLocation.longitude
+          );
+
+          return distance <= maxDistance;
+        })
+        .sort((driverA, driverB) => {
+          if (driverB.rating !== driverA.rating) {
+            return driverB.rating - driverA.rating;
+          }
+
+          return driverA.averageDeliveryTime - driverB.averageDeliveryTime;
+        })
+        .slice(0, 10);
     } catch (error: any) {
       throw new Error(`Erro ao buscar drivers disponíveis: ${error.message}`);
     }
@@ -252,12 +294,23 @@ class DriverServices {
         throw new Error('Driver não está disponível ou não foi verificado');
       }
 
+      const existingDelivery = await Delivery.findOne({ order: new Types.ObjectId(orderId) }).exec();
+      if (existingDelivery) {
+        throw new Error('Já existe uma entrega atribuída para este pedido');
+      }
+
       // Criar entrega
       const delivery = new Delivery({
         order: new Types.ObjectId(orderId),
         driver: driver.userId, // Usar userId do driver
         status: 'picked_up',
         currentLocation: driver.currentLocation
+          ? {
+              lat: driver.currentLocation.latitude,
+              lng: driver.currentLocation.longitude
+            }
+          : undefined,
+        assignedAt: new Date()
       });
 
       await delivery.save();
@@ -276,7 +329,12 @@ class DriverServices {
       await this.notificationService.createNotification(
         driver.userId.toString(),
         'order_status',
-        'Novo pedido atribuído! Verifique os detalhes.'
+        'Novo pedido atribuído! Verifique os detalhes.',
+        {
+          orderId,
+          deliveryId: delivery._id.toString(),
+          metadata: { status: 'picked_up' }
+        }
       );
 
       return {
@@ -300,7 +358,11 @@ class DriverServices {
           currentLocation: {
             latitude: location.latitude,
             longitude: location.longitude,
-            lastUpdated: new Date()
+            lastUpdated: new Date(),
+            geoPoint: {
+              type: 'Point',
+              coordinates: [location.longitude, location.latitude]
+            }
           }
         },
         { new: true }
@@ -320,39 +382,49 @@ class DriverServices {
         throw new Error('Entrega não encontrada');
       }
 
-      // Atualizar status da entrega
+      if (delivery.status === 'delivered') {
+        const existingDriver = await Driver.findOne({ userId: delivery.driver }).exec();
+        return {
+          delivery,
+          driver: existingDriver ? await existingDriver.populate('user', 'userId email phoneNumber') : null
+        };
+      }
+
       delivery.status = 'delivered';
+      delivery.deliveredAt = new Date();
       await delivery.save();
 
       // Atualizar driver
       const driver = await Driver.findOne({ userId: delivery.driver });
       if (driver) {
-        const deliveryTime = new Date().getTime() - delivery.createdAt.getTime();
-        // Atualizar estatísticas do driver manualmente
+        const deliveryTime = (delivery.deliveredAt?.getTime() || Date.now()) - delivery.createdAt.getTime();
         driver.totalDeliveries += 1;
-      driver.completedDeliveries += 1;
-      
-        // Atualizar tempo médio de entrega
+        driver.completedDeliveries += 1;
         const totalTime = (driver.averageDeliveryTime * (driver.completedDeliveries - 1)) + deliveryTime;
-      driver.averageDeliveryTime = totalTime / driver.completedDeliveries;
-      
+        driver.averageDeliveryTime = totalTime / driver.completedDeliveries;
         driver.isAvailable = true;
-      await driver.save();
+        await driver.save();
       }
 
-      // Atualizar status do pedido
-      await Order.findByIdAndUpdate(delivery.order, {
-        status: 'delivered',
-        actualDeliveryTime: new Date()
-      });
+      const order = await Order.findByIdAndUpdate(
+        delivery.order,
+        {
+          status: 'delivered',
+          actualDeliveryTime: delivery.deliveredAt
+        },
+        { new: true }
+      );
 
-      // Enviar notificação ao cliente
-      const order = await Order.findById(delivery.order);
       if (order) {
         await this.notificationService.createNotification(
           order.customer.toString(),
           'order_status',
-          'Seu pedido foi entregue! Obrigado por escolher nossos serviços.'
+          'Seu pedido foi entregue! Obrigado por escolher nossos serviços.',
+          {
+            orderId: order._id.toString(),
+            deliveryId,
+            metadata: { status: 'delivered' }
+          }
         );
       }
 
@@ -407,20 +479,50 @@ class DriverServices {
             completedDeliveries: {
               $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] }
             },
-            averageDeliveryTime: { $avg: '$deliveryTime' }
+            averageDeliveryTime: {
+              $avg: {
+                $cond: [
+                  { $and: [{ $eq: ['$status', 'delivered'] }, { $ifNull: ['$deliveredAt', false] }] },
+                  { $subtract: ['$deliveredAt', '$createdAt'] },
+                  null
+                ]
+              }
+            }
           }
         }
       ]);
 
-      // Adicionar estatísticas de pedidos
-      const orderStats = await Order.aggregate([
-        { $match: { customer: driver.userId } },
+      const recentDeliveries = await Delivery.find({ driver: driver.userId })
+        .populate('order', 'status paymentStatus payableTotal total deliveryFee')
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .exec();
+
+      const orderStats = await Delivery.aggregate([
+        { $match: { driver: driver.userId } },
+        {
+          $lookup: {
+            from: 'orders',
+            localField: 'order',
+            foreignField: '_id',
+            as: 'order'
+          }
+        },
+        { $unwind: '$order' },
         {
           $group: {
             _id: null,
-            totalOrders: { $sum: 1 },
-            totalSpent: { $sum: '$total' },
-            averageOrderValue: { $avg: '$total' }
+            assignedOrders: { $sum: 1 },
+            deliveredOrders: {
+              $sum: { $cond: [{ $eq: ['$order.status', 'delivered'] }, 1, 0] }
+            },
+            failedOrders: {
+              $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] }
+            },
+            totalDeliveryFeesHandled: { $sum: '$order.deliveryFee' },
+            totalOrderValueHandled: {
+              $sum: { $ifNull: ['$order.payableTotal', '$order.total'] }
+            }
           }
         }
       ]);
@@ -442,10 +544,13 @@ class DriverServices {
           averageDeliveryTime: 0
         },
         orderStats: orderStats[0] || {
-          totalOrders: 0,
-          totalSpent: 0,
-          averageOrderValue: 0
-        }
+          assignedOrders: 0,
+          deliveredOrders: 0,
+          failedOrders: 0,
+          totalDeliveryFeesHandled: 0,
+          totalOrderValueHandled: 0
+        },
+        recentDeliveries
       };
     } catch (error: any) {
       throw new Error(`Erro ao obter estatísticas: ${error.message}`);

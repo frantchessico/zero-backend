@@ -45,6 +45,7 @@ export interface IPersonalDelivery {
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   paymentMethod: string;
   driver?: Schema.Types.ObjectId; // ID do driver
+  route?: Schema.Types.ObjectId;
   estimatedPickupTime?: Date;
   estimatedDeliveryTime?: Date;
   actualPickupTime?: Date;
@@ -176,6 +177,10 @@ const PersonalDeliverySchema = new Schema<IPersonalDelivery>({
     type: Schema.Types.ObjectId,
     ref: 'Driver'
   },
+  route: {
+    type: Schema.Types.ObjectId,
+    ref: 'Route'
+  },
   estimatedPickupTime: Date,
   estimatedDeliveryTime: Date,
   actualPickupTime: Date,
@@ -197,6 +202,7 @@ const PersonalDeliverySchema = new Schema<IPersonalDelivery>({
 PersonalDeliverySchema.index({ customer: 1, createdAt: -1 });
 PersonalDeliverySchema.index({ status: 1 });
 PersonalDeliverySchema.index({ driver: 1 });
+PersonalDeliverySchema.index({ route: 1 });
 PersonalDeliverySchema.index({ 'pickupAddress.coordinates': '2dsphere' });
 PersonalDeliverySchema.index({ 'deliveryAddress.coordinates': '2dsphere' });
 

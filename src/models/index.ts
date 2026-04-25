@@ -1,9 +1,11 @@
-export { default as User } from './User';
-export { default as Order } from './Order';
+export { User } from './User';
+export { Order } from './Order';
 export { default as Product } from './Product';
 export { default as Restaurant } from './Restaurant';
-export { default as Category } from './Category';
-export { default as Driver } from './Driver';
+export { Category } from './Category';
+export { Driver } from './Driver';
 export { Coupon } from './Coupon';
 export { LoyaltyProgram } from './LoyaltyProgram';
-export { LoyaltyTransaction } from './LoyaltyTransaction'; 
+export { LoyaltyTransaction } from './LoyaltyTransaction';
+export { ChatConversation } from './ChatConversation';
+export { ChatMessage } from './ChatMessage';

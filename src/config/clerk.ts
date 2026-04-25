@@ -5,8 +5,16 @@ export const initializeClerk = () => {
   // Verificar se as variáveis de ambiente estão configuradas
   const publishableKey = process.env.CLERK_PUBLISHABLE_KEY;
   const secretKey = process.env.CLERK_SECRET_KEY;
+  const isTest = process.env.NODE_ENV === 'test';
 
   if (!publishableKey) {
+    if (isTest) {
+      return {
+        publishableKey: 'pk_test_mock_key',
+        secretKey: secretKey || 'sk_test_mock_key',
+        clerkClient
+      };
+    }
     console.error('❌ CLERK_PUBLISHABLE_KEY não está configurada');
     console.error('💡 Adicione CLERK_PUBLISHABLE_KEY ao seu arquivo .env');
     console.error('🔗 Obtenha a chave em: https://dashboard.clerk.com/last-active?path=api-keys');
@@ -14,6 +22,13 @@ export const initializeClerk = () => {
   }
 
   if (!secretKey) {
+    if (isTest) {
+      return {
+        publishableKey: publishableKey || 'pk_test_mock_key',
+        secretKey: 'sk_test_mock_key',
+        clerkClient
+      };
+    }
     console.error('❌ CLERK_SECRET_KEY não está configurada');
     console.error('💡 Adicione CLERK_SECRET_KEY ao seu arquivo .env');
     console.error('🔗 Obtenha a chave em: https://dashboard.clerk.com/last-active?path=api-keys');

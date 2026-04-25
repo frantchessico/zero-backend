@@ -17,6 +17,10 @@ export interface IAddress {
       lat: number;
       lng: number;
     };
+    geoPoint?: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
   }
   
   
@@ -106,6 +110,21 @@ export interface IAddress {
     status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
     paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
     paymentMethod: string;
+    coupon?: Types.ObjectId;
+    couponCode?: string;
+    appliedPromotionIds?: Types.ObjectId[];
+    promotionDiscountAmount?: number;
+    couponDiscountAmount?: number;
+    loyaltyDiscountAmount?: number;
+    totalDiscountAmount?: number;
+    payableTotal?: number;
+    pricingSnapshot?: {
+      subtotalBeforeDiscounts: number;
+      deliveryFeeBeforeDiscounts: number;
+      taxBeforeDiscounts: number;
+    };
+    refundReason?: string;
+    cancelledAt?: Date;
     estimatedDeliveryTime?: Date;
     actualDeliveryTime?: Date;
     notes?: string;
@@ -125,6 +144,23 @@ export interface IAddress {
     driver: string; // user ID
     status: 'picked_up' | 'in_transit' | 'delivered' | 'failed';
     currentLocation?: ILocation;
+    currentLocationGeo?: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
+    failureReason?: string;
+    route?: string;
+    routeGeometry?: {
+      type: 'LineString';
+      coordinates: [number, number][];
+      metadata?: {
+        provider?: string;
+        distanceMeters?: number;
+        durationSeconds?: number;
+      };
+    };
+    assignedAt?: Date;
+    deliveredAt?: Date;
     estimatedTime?: Date;
     createdAt?: Date;
     updatedAt?: Date;
@@ -137,11 +173,16 @@ export interface IAddress {
     payer?: string; // user ID de quem pagou
     vendor?: string; // vendor/estabelecimento que recebe
     method: 'mpesa' | 'card' | 'cash';
-    status: 'pending' | 'paid' | 'failed';
+    status: 'pending' | 'paid' | 'failed' | 'refunded';
     amount: number;
     paidAt?: Date;
     coupon?: string;
     discountAmount?: number;
+    providerStatus?: string;
+    providerPayload?: Record<string, any>;
+    refundReason?: string;
+    refundedAt?: Date;
+    idempotencyKey?: string;
     // Campos adicionais para integrações como M-Pesa
     phoneNumber?: string;
     paymentConversation?: string;
@@ -154,13 +195,67 @@ export interface IAddress {
   }
 
   
-  export interface INotification {
+export interface INotification {
     _id?: string;
     user: string; // user ID
-    type: 'order_status' | 'delivery_update' | 'promotion';
+    type: 'order_status' | 'delivery_update' | 'promotion' | 'payment_update' | 'vendor_status' | 'system';
     message: string;
+    order?: string;
+    delivery?: string;
+    personalDelivery?: string;
+    metadata?: Record<string, any>;
     read?: boolean;
     sentAt?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }
+
+  export type ChatScope = 'customer_vendor' | 'customer_driver' | 'driver_vendor' | 'support';
+  export type ChatMessageType = 'text' | 'system';
+  export type ChatParticipantRole = 'customer' | 'driver' | 'vendor' | 'admin' | 'support';
+
+  export interface IChatParticipant {
+    user: Types.ObjectId;
+    role: ChatParticipantRole;
+    label: string;
+  }
+
+  export interface IChatConversation {
+    _id?: Types.ObjectId;
+    contextType: 'order';
+    scope: ChatScope;
+    order: Types.ObjectId;
+    delivery?: Types.ObjectId;
+    vendor?: Types.ObjectId;
+    participantIds: Types.ObjectId[];
+    participants: IChatParticipant[];
+    title: string;
+    subtitle?: string;
+    lastMessagePreview?: string;
+    lastMessageAt?: Date;
+    lastMessageSender?: Types.ObjectId;
+    unreadCounts?: Record<string, number>;
+    isActive?: boolean;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }
+
+  export interface IChatMessageReadReceipt {
+    user: Types.ObjectId;
+    readAt: Date;
+  }
+
+  export interface IChatMessage {
+    _id?: Types.ObjectId;
+    conversation: Types.ObjectId;
+    order: Types.ObjectId;
+    delivery?: Types.ObjectId;
+    sender?: Types.ObjectId;
+    senderRole: ChatParticipantRole | 'system';
+    type: ChatMessageType;
+    body: string;
+    metadata?: Record<string, any>;
+    readBy?: IChatMessageReadReceipt[];
     createdAt?: Date;
     updatedAt?: Date;
   }

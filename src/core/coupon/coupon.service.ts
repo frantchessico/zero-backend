@@ -7,6 +7,7 @@ export interface CreateCouponDTO {
   title?: string;
   description?: string;
   type: 'percentage' | 'fixed';
+  scope?: 'order_total' | 'delivery_fee';
   value: number;
   allowedPaymentMethods?: Array<'mpesa' | 'card' | 'cash'>;
   minOrderAmount?: number;
@@ -34,6 +35,7 @@ export class CouponService {
       title: data.title,
       description: data.description,
       type: data.type,
+      scope: data.scope || 'order_total',
       value: data.value,
       allowedPaymentMethods: data.allowedPaymentMethods,
       minOrderAmount: data.minOrderAmount,
@@ -56,6 +58,7 @@ export class CouponService {
           ...(data.title && { title: data.title }),
           ...(data.description && { description: data.description }),
           ...(data.type && { type: data.type }),
+          ...(data.scope && { scope: data.scope }),
           ...(data.value !== undefined && { value: data.value }),
           ...(data.allowedPaymentMethods && { allowedPaymentMethods: data.allowedPaymentMethods }),
           ...(data.minOrderAmount !== undefined && { minOrderAmount: data.minOrderAmount }),
@@ -127,8 +130,15 @@ export class CouponService {
     vendorId?: string;
     paymentMethod: 'mpesa' | 'card' | 'cash';
     orderTotal: number;
-  }): Promise<{ valid: boolean; reason?: string; discountAmount?: number; couponId?: string }> {
-    const { code, vendorId, paymentMethod, orderTotal } = params;
+    deliveryFee?: number;
+  }): Promise<{
+    valid: boolean;
+    reason?: string;
+    discountAmount?: number;
+    couponId?: string;
+    scope?: 'order_total' | 'delivery_fee';
+  }> {
+    const { code, vendorId, paymentMethod, orderTotal, deliveryFee = 0 } = params;
 
     const coupon = await Coupon.findOne({ code: code.trim().toUpperCase() }).exec();
     if (!coupon) {
@@ -153,6 +163,10 @@ export class CouponService {
       return { valid: false, reason: 'Limite de uso do cupom atingido' };
     }
 
+    if (coupon.vendor && !vendorId) {
+      return { valid: false, reason: 'Cupom exige um estabelecimento específico' };
+    }
+
     if (coupon.vendor && vendorId && coupon.vendor.toString() !== vendorId) {
       return { valid: false, reason: 'Cupom não é válido para este estabelecimento' };
     }
@@ -168,9 +182,11 @@ export class CouponService {
     }
 
     // Calcular desconto
+    const baseAmount = coupon.scope === 'delivery_fee' ? deliveryFee : orderTotal;
+
     let discountAmount =
       coupon.type === 'percentage'
-        ? (orderTotal * coupon.value) / 100
+        ? (baseAmount * coupon.value) / 100
         : coupon.value;
 
     if (coupon.maxDiscountAmount && discountAmount > coupon.maxDiscountAmount) {
@@ -184,19 +200,27 @@ export class CouponService {
     return {
       valid: true,
       discountAmount,
-      couponId: coupon._id.toString()
+      couponId: coupon._id.toString(),
+      scope: coupon.scope || 'order_total'
     };
   }
 
-  async registerUse(couponId: string) {
-    await Coupon.findByIdAndUpdate(
-      couponId,
+  async registerUse(couponId: string): Promise<boolean> {
+    const coupon = await Coupon.findOneAndUpdate(
+      {
+        _id: couponId,
+        $or: [
+          { maxUses: { $exists: false } },
+          { $expr: { $lt: ['$usedCount', '$maxUses'] } }
+        ]
+      },
       { $inc: { usedCount: 1 } },
       { new: true }
     );
+
+    return !!coupon;
   }
 }
 
 export const couponService = new CouponService();
-
 

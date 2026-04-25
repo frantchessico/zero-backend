@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { GeoPointSchema } from './Geo';
 
 export interface IDriver extends Document {
   // Referência ao User
@@ -16,6 +17,10 @@ export interface IDriver extends Document {
     latitude: number;
     longitude: number;
     lastUpdated: Date;
+    geoPoint?: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
   };
   isAvailable: boolean;
   isVerified: boolean;
@@ -50,8 +55,7 @@ const driverSchema: Schema<IDriver> = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   
   // Campos específicos de Driver (sem duplicação)
@@ -73,7 +77,11 @@ const driverSchema: Schema<IDriver> = new Schema({
   currentLocation: {
     latitude: Number,
     longitude: Number,
-    lastUpdated: Date
+    lastUpdated: Date,
+    geoPoint: {
+      type: GeoPointSchema,
+      required: false
+    }
   },
   isAvailable: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: false },
@@ -139,6 +147,17 @@ driverSchema.virtual('fullName').get(function() {
 // Validar se User existe e tem role 'driver'
 driverSchema.pre('save', async function(next) {
   try {
+    if (
+      this.currentLocation &&
+      Number.isFinite(this.currentLocation.latitude) &&
+      Number.isFinite(this.currentLocation.longitude)
+    ) {
+      this.currentLocation.geoPoint = {
+        type: 'Point',
+        coordinates: [this.currentLocation.longitude, this.currentLocation.latitude]
+      };
+    }
+
     const User = mongoose.model('User');
     const user = await User.findById(this.userId);
     
@@ -267,12 +286,9 @@ driverSchema.statics.findDriversByRating = function(minRating: number = 4.0) {
 // ===== INDEXES =====
 
 // Indexes para consultas eficientes
-driverSchema.index({ currentLocation: '2dsphere' });
+driverSchema.index({ 'currentLocation.geoPoint': '2dsphere' });
 driverSchema.index({ isAvailable: 1, isVerified: 1 });
 driverSchema.index({ rating: -1 });
-driverSchema.index({ userId: 1 });
-driverSchema.index({ licenseNumber: 1 });
-
 // Configurar para incluir virtuals no JSON
 driverSchema.set('toJSON', { virtuals: true });
 driverSchema.set('toObject', { virtuals: true });

@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { DriverService, CreateDriverDTO, UpdateDriverDTO, DriverFilters } from './driver.service';
 import { User } from '../../models/User';
 import { logger } from '../../utils/logger';
+import { deliveryTrackingService } from '../delivery/delivery-tracking.service';
 
 export class DriverController {
   private driverService: typeof DriverService;
@@ -307,6 +308,8 @@ export class DriverController {
         });
         return;
       }
+
+      await deliveryTrackingService.publishForDriver(driver.userId.toString());
 
       res.status(200).json({
         success: true,

@@ -6,6 +6,7 @@ import { Order } from '../../models/Order';
 import { Coupon } from '../../models/Coupon';
 import { couponService } from '../coupon/coupon.service';
 import { logger } from '../../utils/logger';
+import ProductModel from '../../models/Product';
 
 export interface EarnPointsParams {
   userId: string;
@@ -45,6 +46,34 @@ export interface UserLoyaltyStatus {
 }
 
 export class LoyaltyService {
+  private getUserPoints(user: { loyaltyPoints?: number | null }) {
+    return user.loyaltyPoints ?? 0;
+  }
+
+  async getAvailablePointsBalance(userId: string): Promise<number> {
+    const now = new Date();
+    const aggregates = await LoyaltyTransaction.aggregate([
+      {
+        $match: {
+          user: new Types.ObjectId(userId),
+          $or: [
+            { expiresAt: { $exists: false } },
+            { expiresAt: null },
+            { expiresAt: { $gte: now } }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$points' }
+        }
+      }
+    ]);
+
+    return Math.max(0, aggregates[0]?.total || 0);
+  }
+
   /**
    * Obter programa de fidelidade ativo (global ou do vendor)
    */
@@ -93,6 +122,18 @@ export class LoyaltyService {
    */
   async earnPoints(params: EarnPointsParams): Promise<{ points: number; transaction: any }> {
     const { userId, orderId, orderTotal, vendorId, reason } = params;
+
+    if (orderId) {
+      const existingTransaction = await LoyaltyTransaction.findOne({
+        user: new Types.ObjectId(userId),
+        order: new Types.ObjectId(orderId),
+        type: 'earned'
+      }).exec();
+
+      if (existingTransaction) {
+        return { points: existingTransaction.points, transaction: existingTransaction };
+      }
+    }
     
     const points = await this.calculatePointsEarned(orderTotal, vendorId);
     
@@ -115,7 +156,7 @@ export class LoyaltyService {
     }
     
     // Atualizar pontos do usuário
-    const updatedUser = await User.findByIdAndUpdate(
+    await User.findByIdAndUpdate(
       userId,
       { $inc: { loyaltyPoints: points } },
       { new: true }
@@ -161,7 +202,7 @@ export class LoyaltyService {
     
     // Encontrar nível atual do usuário
     for (const level of sortedLevels) {
-      if (user.loyaltyPoints >= level.minPoints) {
+      if (this.getUserPoints(user) >= level.minPoints) {
         // Verificar se já está neste nível (poderia salvar no User, mas por simplicidade retornamos)
         return level.name;
       }
@@ -185,7 +226,7 @@ export class LoyaltyService {
     const sortedLevels = [...program.levels].sort((a, b) => b.minPoints - a.minPoints);
     
     for (const level of sortedLevels) {
-      if (user.loyaltyPoints >= level.minPoints) {
+      if (this.getUserPoints(user) >= level.minPoints) {
         return level;
       }
     }
@@ -208,10 +249,10 @@ export class LoyaltyService {
     const sortedLevels = [...program.levels].sort((a, b) => a.minPoints - b.minPoints);
     
     for (const level of sortedLevels) {
-      if (user.loyaltyPoints < level.minPoints) {
+      if (this.getUserPoints(user) < level.minPoints) {
         return {
           ...level,
-          pointsNeeded: level.minPoints - user.loyaltyPoints
+          pointsNeeded: level.minPoints - this.getUserPoints(user)
         };
       }
     }
@@ -228,9 +269,9 @@ export class LoyaltyService {
       throw new Error('Usuário não encontrado');
     }
     
-    const program = await this.getActiveProgram(vendorId);
     const currentLevel = await this.getCurrentLevel(userId, vendorId);
     const nextLevel = await this.getNextLevel(userId, vendorId);
+    const availablePoints = await this.getAvailablePointsBalance(userId);
     
     // Calcular pontos expirando em breve (próximos 30 dias)
     const thirtyDaysFromNow = new Date();
@@ -265,8 +306,8 @@ export class LoyaltyService {
     
     return {
       userId: user._id.toString(),
-      totalPoints: user.loyaltyPoints,
-      availablePoints: user.loyaltyPoints, // Simplificado (poderia subtrair expirados)
+      totalPoints: this.getUserPoints(user),
+      availablePoints,
       currentLevel,
       nextLevel,
       pointsExpiringSoon,
@@ -287,7 +328,7 @@ export class LoyaltyService {
       throw new Error('Programa de fidelidade não encontrado');
     }
     
-    const reward = program.rewards.find(r => r._id?.toString() === rewardId);
+    const reward = program.rewards.find((r: any) => r._id?.toString() === rewardId);
     if (!reward || !reward.isActive) {
       throw new Error('Recompensa não encontrada ou inativa');
     }
@@ -297,7 +338,8 @@ export class LoyaltyService {
       throw new Error('Usuário não encontrado');
     }
     
-    if (user.loyaltyPoints < reward.pointsRequired) {
+    const availablePoints = await this.getAvailablePointsBalance(userId);
+    if (availablePoints < reward.pointsRequired) {
       throw new Error('Pontos insuficientes para resgatar esta recompensa');
     }
     
@@ -322,31 +364,65 @@ export class LoyaltyService {
     });
     
     let coupon = null;
-    
-    // Se for recompensa de cupom, criar cupom automaticamente
-    if (reward.type === 'coupon' && reward.value) {
-      try {
-        const couponCode = `LOYALTY${Date.now().toString().slice(-6)}`;
+
+    try {
+      const couponCode = `LOYALTY${Date.now().toString().slice(-6)}`;
+      const baseCouponData = {
+        vendorId,
+        code: couponCode,
+        title: reward.name,
+        description: reward.description || `Recompensa resgatada com ${reward.pointsRequired} pontos`,
+        maxUses: 1,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      };
+
+      if (reward.type === 'coupon' && reward.value) {
         coupon = await couponService.createCoupon({
-          vendorId: vendorId,
-          code: couponCode,
-          title: reward.name,
-          description: reward.description || `Cupom resgatado com ${reward.pointsRequired} pontos`,
+          ...baseCouponData,
           type: 'percentage',
           value: reward.value,
-          maxUses: 1, // Cupom de uso único
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Válido por 30 dias
+          scope: 'order_total'
         });
-        
-        // Atualizar transação com referência ao cupom
+      } else if (reward.type === 'discount' && reward.value) {
+        coupon = await couponService.createCoupon({
+          ...baseCouponData,
+          type: reward.value <= 100 ? 'percentage' : 'fixed',
+          value: reward.value,
+          scope: 'order_total'
+        });
+      } else if (reward.type === 'free_delivery') {
+        coupon = await couponService.createCoupon({
+          ...baseCouponData,
+          type: 'fixed',
+          value: reward.value || 999999,
+          scope: 'delivery_fee'
+        });
+      } else if (reward.type === 'product' && reward.value) {
+        const product = await ProductModel.findById(reward.value).exec();
+        if (!product) {
+          throw new Error('Produto de recompensa não encontrado');
+        }
+
+        coupon = await couponService.createCoupon({
+          ...baseCouponData,
+          vendorId: product.vendor.toString(),
+          description:
+            reward.description ||
+            `Produto resgatado: ${product.name}. Cupom equivalente ao valor do produto.`,
+          type: 'fixed',
+          value: product.price,
+          scope: 'order_total'
+        });
+      }
+
+      if (coupon) {
         await LoyaltyTransaction.findByIdAndUpdate(transaction._id, {
           coupon: coupon._id
         });
-      } catch (error: any) {
-        logger.error('Erro ao criar cupom de recompensa:', error);
-        // Não falhar o resgate se o cupom falhar
       }
+    } catch (error: any) {
+      logger.error('Erro ao criar benefício de recompensa:', error);
     }
     
     logger.info(`Usuário ${userId} resgatou recompensa ${reward.name} por ${reward.pointsRequired} pontos`);
@@ -388,7 +464,16 @@ export class LoyaltyService {
     
     return transaction;
   }
+
+  async getAutomaticDiscount(userId: string, orderTotal: number, vendorId?: string): Promise<number> {
+    const currentLevel = await this.getCurrentLevel(userId, vendorId);
+
+    if (!currentLevel?.discountPercentage) {
+      return 0;
+    }
+
+    return Number(((orderTotal * currentLevel.discountPercentage) / 100).toFixed(2));
+  }
 }
 
 export const loyaltyService = new LoyaltyService();
-

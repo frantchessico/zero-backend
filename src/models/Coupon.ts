@@ -6,6 +6,7 @@ export interface ICoupon {
   title?: string;
   description?: string;
   type: 'percentage' | 'fixed';
+  scope?: 'order_total' | 'delivery_fee';
   value: number;
   allowedPaymentMethods?: Array<'mpesa' | 'card' | 'cash'>;
   minOrderAmount?: number;
@@ -25,6 +26,7 @@ const CouponSchema = new Schema<ICoupon>({
   title: { type: String },
   description: { type: String },
   type: { type: String, enum: ['percentage', 'fixed'], required: true },
+  scope: { type: String, enum: ['order_total', 'delivery_fee'], default: 'order_total' },
   value: { type: Number, required: true, min: 0 },
   allowedPaymentMethods: [{ type: String, enum: ['mpesa', 'card', 'cash'] }],
   minOrderAmount: { type: Number, min: 0 },
@@ -38,9 +40,6 @@ const CouponSchema = new Schema<ICoupon>({
   timestamps: true
 });
 
-CouponSchema.index({ code: 1 });
 CouponSchema.index({ vendor: 1, isActive: 1 });
 
 export const Coupon = model<ICoupon>('Coupon', CouponSchema);
-
-

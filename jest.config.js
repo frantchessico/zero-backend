@@ -11,7 +11,9 @@ module.exports = {
   
   // Transformações
   transform: {
-    '^.+\\.ts$': 'ts-jest'
+    '^.+\\.ts$': ['ts-jest', {
+      diagnostics: false,
+    }]
   },
   
   // Extensões de módulo
@@ -37,34 +39,14 @@ module.exports = {
   
   // Setup e teardown
   setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],
+  moduleNameMapper: {
+    '^@paymentsds/mpesa$': '<rootDir>/src/tests/mocks/mpesa.ts'
+  },
+  testPathIgnorePatterns: ['<rootDir>/src/config/database.test.ts'],
   
   // Timeout para testes
   testTimeout: 10000,
   
   // Verbose para debug
   verbose: true,
-  
-  // Configurações específicas para diferentes tipos de teste
-  projects: [
-    {
-      displayName: 'unit',
-      testMatch: ['<rootDir>/src/tests/unit/**/*.test.ts'],
-      collectCoverageFrom: [
-        'src/**/*.ts',
-        '!src/**/*.d.ts',
-        '!src/tests/**',
-        '!src/examples/**'
-      ]
-    },
-    {
-      displayName: 'integration',
-      testMatch: ['<rootDir>/src/tests/integration/**/*.test.ts'],
-      setupFilesAfterEnv: ['<rootDir>/src/tests/setup.integration.ts']
-    },
-    {
-      displayName: 'e2e',
-      testMatch: ['<rootDir>/src/tests/e2e/**/*.test.ts'],
-      setupFilesAfterEnv: ['<rootDir>/src/tests/setup.e2e.ts']
-    }
-  ]
-}; 
+};

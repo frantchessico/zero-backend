@@ -19,6 +19,12 @@ import deliveryRoutes from './routes/delivery.routes'
 import driverRoutes from './routes/driver.routes'
 import notificationRoutes from './routes/notification.routes'
 import auditRoutes from './routes/audit.routes'
+import routeRoutes from './routes/route.routes'
+import personalDeliveryRoutes from './routes/personal-delivery.routes'
+import promotionRoutes from './routes/promotion.routes'
+import couponRoutes from './routes/coupon.routes'
+import loyaltyRoutes from './routes/loyalty.routes'
+import chatRoutes from './routes/chat.routes'
 
 // Importar middlewares de segurança
 import { authenticateUser } from './middleware/auth.middleware'
@@ -28,16 +34,23 @@ import { logAction } from './middleware/auth.middleware'
 import { auditCriticalActions } from './middleware/audit.middleware'
 
 const app = express()
+const isTestEnv = process.env.NODE_ENV === 'test';
 
 // Inicializar Clerk
-initializeClerk();
+if (!isTestEnv) {
+  initializeClerk();
+}
 
 // Configurar trust proxy para resolver problemas com X-Forwarded-For
 app.set('trust proxy', 1);
 
-app.use(clerkMiddleware())
-// Connect to MongoDB
-connectDatabase()
+if (!isTestEnv) {
+  app.use(clerkMiddleware());
+}
+// Connect to MongoDB outside test runs; integration tests manage their own connection.
+if (!isTestEnv) {
+  connectDatabase()
+}
 
 // ===== MIDDLEWARES DE SEGURANÇA =====
 
@@ -46,7 +59,7 @@ app.use(helmet())
 
 // CORS configurado
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
   credentials: true
 }))
 
@@ -107,6 +120,12 @@ app.use("/api/vendors", vendorRoutes)
 app.use("/api/deliveries", deliveryRoutes)
 app.use("/api/drivers", driverRoutes)
 app.use("/api/notifications", notificationRoutes)
+app.use("/api/routes", routeRoutes)
+app.use("/api/personal-delivery", personalDeliveryRoutes)
+app.use("/api/promotions", promotionRoutes)
+app.use("/api/coupons", couponRoutes)
+app.use("/api/loyalty", loyaltyRoutes)
+app.use("/api/chats", chatRoutes)
 
 // Rotas de auditoria (apenas para admins)
 app.use("/api/audit", auditRoutes)

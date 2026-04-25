@@ -293,7 +293,7 @@ export class NotificationJobExamples {
       await this.notificationService.notifyCustomerOrderStatus(
         customerId, 
         orderId, 
-        newStatus
+        newStatus as 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled'
       );
       console.log('✅ Cliente notificado via webhook');
     } catch (error) {

@@ -6,15 +6,13 @@ export const UserSchema = new Schema<IUser>({
   userId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   clerkId: {
     type: String,
     required: false,
     unique: true,
-    sparse: true,
-    index: true
+    sparse: true
   },
   phoneNumber: { type: String, required: false },
   email: { type: String, unique: true, sparse: true },

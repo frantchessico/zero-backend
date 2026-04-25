@@ -117,7 +117,7 @@ const restaurantSchema: Schema<IRestaurant> = new Schema(
     cuisineType: {
       type: [String],
       required: true,
-      validate: [cuisineType => cuisineType.length > 0, 'Pelo menos um tipo de cozinha deve ser especificado'],
+      validate: [(cuisineType: string[]) => cuisineType.length > 0, 'Pelo menos um tipo de cozinha deve ser especificado'],
     },
     rating: {
       type: Number,

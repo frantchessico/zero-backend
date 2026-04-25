@@ -5,14 +5,29 @@ import { IVendor } from '../../models/interfaces';
 import { logger } from '../../utils/logger';
 
 export class VendorController {
-  getVendorStatsByStatus(arg0: string, getVendorStatsByStatus: any) {
-      throw new Error('Method not implemented.');
-  }
   private vendorService: VendorService;
 
   constructor() {
     this.vendorService = new VendorService();
   }
+
+  getVendorStatsByStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const stats = await this.vendorService.getVendorStatsByStatus(id);
+
+      res.status(200).json({
+        success: true,
+        data: stats
+      });
+    } catch (error: any) {
+      logger.error('Error fetching vendor stats by status:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Erro ao buscar estatísticas do vendor'
+      });
+    }
+  };
 
   /**
    * GET /vendors/my-vendor - Buscar vendor do usuário autenticado

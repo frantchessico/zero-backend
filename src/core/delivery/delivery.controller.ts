@@ -1,6 +1,8 @@
 // controllers/deliveryController.ts
 import { Request, Response } from 'express';
 import DeliveryService, { CreateDeliveryDTO, UpdateDeliveryDTO, DeliveryFilters } from './delivery.service';
+import { deliveryTrackingService } from './delivery-tracking.service';
+import { chatService } from '../chat/chat.service';
 import { User } from '../../models/User';
 import { Driver } from '../../models/Driver';
 import { logger } from '../../utils/logger';
@@ -189,7 +191,7 @@ class DeliveryController {
         return;
       }
 
-      if (delivery.driver?.toString() !== (driver as any)._id.toString()) {
+      if (delivery.driver?.toString() !== user._id.toString()) {
         res.status(403).json({
           success: false,
           message: 'Você não tem permissão para atualizar esta entrega'
@@ -199,6 +201,7 @@ class DeliveryController {
 
       const updateData: UpdateDeliveryDTO = { status };
       const updatedDelivery = await DeliveryService.updateDelivery(id, updateData);
+      await deliveryTrackingService.publishDeliverySnapshot(id);
       
       res.status(200).json({
         success: true,
@@ -220,6 +223,12 @@ class DeliveryController {
       const deliveryData: CreateDeliveryDTO = req.body;
       
       const result = await DeliveryService.createDelivery(deliveryData);
+      if (result?.delivery?._id) {
+        await deliveryTrackingService.publishDeliverySnapshot(result.delivery._id.toString());
+        if (result.delivery.order) {
+          await chatService.syncOrderConversations(result.delivery.order.toString());
+        }
+      }
       
       res.status(201).json({
         success: true,
@@ -294,6 +303,7 @@ class DeliveryController {
       const updateData: UpdateDeliveryDTO = req.body;
       
       const updatedDelivery = await DeliveryService.updateDelivery(id, updateData);
+      await deliveryTrackingService.publishDeliverySnapshot(id);
       
       res.status(200).json({
         success: true,
@@ -314,7 +324,7 @@ class DeliveryController {
     try {
       const { id } = req.params;
       
-      const trackingData = await DeliveryService.trackDelivery(id);
+      const trackingData = await deliveryTrackingService.publishDeliverySnapshot(id);
       
       res.status(200).json({
         success: true,
@@ -404,6 +414,7 @@ class DeliveryController {
       }
       
       const result = await DeliveryService.cancelDelivery(id, reason);
+      await deliveryTrackingService.publishDeliverySnapshot(id);
       
       res.status(200).json({
         success: true,
@@ -426,6 +437,10 @@ class DeliveryController {
       const { newDriverId } = req.body;
       
       const result = await DeliveryService.reassignDelivery(id, newDriverId);
+      await deliveryTrackingService.publishDeliverySnapshot(id);
+      if (result?.delivery?.order) {
+        await chatService.syncOrderConversations(result.delivery.order.toString());
+      }
       
       res.status(200).json({
         success: true,
@@ -489,6 +504,7 @@ class DeliveryController {
       };
       
       const updatedDelivery = await DeliveryService.updateDelivery(id, updateData);
+      await deliveryTrackingService.publishDeliverySnapshot(id);
       
       res.status(200).json({
         success: true,
@@ -801,6 +817,7 @@ class DeliveryController {
       };
       
       const updatedDelivery = await DeliveryService.updateDelivery(id, updateData);
+      await deliveryTrackingService.publishDeliverySnapshot(id);
       
       res.status(200).json({
         success: true,

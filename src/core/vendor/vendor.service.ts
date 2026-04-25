@@ -26,40 +26,73 @@ export class VendorService {
     endDate?: Date
   ): Promise<{
     vendorId: string;
+    grossReceived: number;
+    refundedAmount: number;
+    netReceived: number;
     totalReceived: number;
     totalPaidTransactions: number;
+    totalRefundedTransactions: number;
     byMethod: Record<string, { total: number; count: number }>;
   }> {
     const match: any = {
       vendor: new Types.ObjectId(vendorId),
-      status: 'paid'
+      status: { $in: ['paid', 'refunded'] }
     };
 
     if (startDate || endDate) {
-      match.paidAt = {};
-      if (startDate) match.paidAt.$gte = startDate;
-      if (endDate) match.paidAt.$lte = endDate;
+      match.$or = [
+        {
+          paidAt: {
+            ...(startDate ? { $gte: startDate } : {}),
+            ...(endDate ? { $lte: endDate } : {})
+          }
+        },
+        {
+          refundedAt: {
+            ...(startDate ? { $gte: startDate } : {}),
+            ...(endDate ? { $lte: endDate } : {})
+          }
+        }
+      ];
     }
 
     const payments = await Payment.find(match).exec();
 
     const byMethod: Record<string, { total: number; count: number }> = {};
-    let totalReceived = 0;
+    let grossReceived = 0;
+    let refundedAmount = 0;
+    let totalPaidTransactions = 0;
+    let totalRefundedTransactions = 0;
 
     payments.forEach(p => {
       const method = p.method || 'unknown';
       if (!byMethod[method]) {
         byMethod[method] = { total: 0, count: 0 };
       }
-      byMethod[method].total += p.amount;
+
+      const signedAmount = p.status === 'refunded' ? -p.amount : p.amount;
+      byMethod[method].total += signedAmount;
       byMethod[method].count += 1;
-      totalReceived += p.amount;
+
+      if (p.status === 'refunded') {
+        refundedAmount += p.amount;
+        totalRefundedTransactions += 1;
+      } else {
+        grossReceived += p.amount;
+        totalPaidTransactions += 1;
+      }
     });
+
+    const netReceived = grossReceived - refundedAmount;
 
     return {
       vendorId,
-      totalReceived,
-      totalPaidTransactions: payments.length,
+      grossReceived,
+      refundedAmount,
+      netReceived,
+      totalReceived: netReceived,
+      totalPaidTransactions,
+      totalRefundedTransactions,
       byMethod
     };
   }
@@ -454,6 +487,63 @@ export class VendorService {
     ]);
 
     return { active, suspended, temporarilyClosed };
+  }
+
+  async getVendorStatsByStatus(vendorId: string): Promise<{
+    vendorId: string;
+    orders: Record<string, number>;
+    deliveries: {
+      total: number;
+      delivered: number;
+      failed: number;
+      active: number;
+    };
+  }> {
+    const Order = (await import('../../models/Order')).Order;
+    const Delivery = (await import('../../models/Delivery')).Delivery;
+
+    const ordersByStatus = await Order.aggregate([
+      { $match: { vendor: new Types.ObjectId(vendorId) } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    const vendorOrders = await Order.find({ vendor: new Types.ObjectId(vendorId) }).select('_id');
+    const deliveryStats = await Delivery.aggregate([
+      { $match: { order: { $in: vendorOrders.map(order => order._id) } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+          failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+          active: {
+            $sum: {
+              $cond: [
+                { $in: ['$status', ['picked_up', 'in_transit']] },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    const orders: Record<string, number> = {};
+    ordersByStatus.forEach((stat: any) => {
+      orders[stat._id] = stat.count;
+    });
+
+    return {
+      vendorId,
+      orders,
+      deliveries: deliveryStats[0] || {
+        total: 0,
+        delivered: 0,
+        failed: 0,
+        active: 0
+      }
+    };
   }
 
   /**

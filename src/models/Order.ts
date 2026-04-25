@@ -92,6 +92,54 @@ const OrderSchema = new Schema<IOrder>({
     type: String,
     required: true
   },
+  coupon: {
+    type: Schema.Types.ObjectId,
+    ref: 'Coupon'
+  },
+  couponCode: {
+    type: String,
+    trim: true
+  },
+  appliedPromotionIds: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Promotion'
+  }],
+  promotionDiscountAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  couponDiscountAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  loyaltyDiscountAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  totalDiscountAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  payableTotal: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  pricingSnapshot: {
+    subtotalBeforeDiscounts: { type: Number, min: 0 },
+    deliveryFeeBeforeDiscounts: { type: Number, min: 0 },
+    taxBeforeDiscounts: { type: Number, min: 0 }
+  },
+  refundReason: {
+    type: String
+  },
+  cancelledAt: {
+    type: Date
+  },
   estimatedDeliveryTime: Date,
   actualDeliveryTime: Date,
   notes: String
@@ -176,10 +224,31 @@ OrderSchema.pre('save', async function(next) {
 
 // Middleware: calcula subtotal e total automaticamente
 OrderSchema.pre('save', function(next) {
-  if (this.isModified('items') || this.isModified('deliveryFee') || this.isModified('tax')) {
+  if (
+    this.isModified('items') ||
+    this.isModified('deliveryFee') ||
+    this.isModified('tax') ||
+    this.isModified('promotionDiscountAmount') ||
+    this.isModified('couponDiscountAmount') ||
+    this.isModified('loyaltyDiscountAmount')
+  ) {
     this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
     this.total = this.subtotal + this.deliveryFee + this.tax;
+    this.totalDiscountAmount =
+      (this.promotionDiscountAmount || 0) +
+      (this.couponDiscountAmount || 0) +
+      (this.loyaltyDiscountAmount || 0);
+    this.payableTotal = Math.max(0, this.total - this.totalDiscountAmount);
   }
+
+  if (!this.pricingSnapshot) {
+    this.pricingSnapshot = {
+      subtotalBeforeDiscounts: this.subtotal,
+      deliveryFeeBeforeDiscounts: this.deliveryFee,
+      taxBeforeDiscounts: this.tax
+    };
+  }
+
   next();
 });
 
